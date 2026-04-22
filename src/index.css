@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 156 24% 97%;
+  --foreground: 188 24% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 188 24% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 188 24% 16%;
+  --primary: 170 48% 35%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 163 30% 90%;
+  --secondary-foreground: 188 24% 16%;
+  --muted: 156 18% 92%;
+  --muted-foreground: 188 10% 40%;
+  --accent: 11 76% 63%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 167 20% 79%;
+  --input: 167 20% 79%;
+  --ring: 170 52% 33%;
+  --sea-foam: 166 40% 79%;
+  --sea-ink: 188 34% 22%;
+  --sand: 42 42% 94%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, hsla(var(--sea-foam) / 0.12), transparent 30%),
+    linear-gradient(180deg, hsl(156 22% 98%), hsl(42 24% 97%));
+  font-family:
+    "Aptos", "Segoe UI Variable", "Segoe UI", "Helvetica Neue", "Arial Nova",
+    sans-serif;
+  color: hsl(var(--foreground));
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.font-studio {
+  font-family:
+    "Aptos Display", "Aptos", "Segoe UI Variable", "Segoe UI", "Helvetica Neue",
+    sans-serif;
+}

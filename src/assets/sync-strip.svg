@@ -1,0 +1,19 @@
+<svg width="1120" height="280" viewBox="0 0 1120 280" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Calendar sync preview</title>
+  <desc id="desc">A compact calendar timeline with synced time entries.</desc>
+  <rect width="1120" height="280" rx="8" fill="#FFFFFF"/>
+  <rect x="32" y="32" width="1056" height="216" rx="8" fill="#F5F7F7"/>
+  <rect x="68" y="70" width="188" height="36" rx="6" fill="#12806F"/>
+  <rect x="274" y="70" width="126" height="36" rx="6" fill="#E85063"/>
+  <rect x="418" y="70" width="236" height="36" rx="6" fill="#2B6CB0"/>
+  <rect x="672" y="70" width="148" height="36" rx="6" fill="#F2AE2E"/>
+  <rect x="840" y="70" width="186" height="36" rx="6" fill="#12806F"/>
+  <rect x="68" y="133" width="294" height="28" rx="6" fill="#D9E8E5"/>
+  <rect x="386" y="133" width="182" height="28" rx="6" fill="#FAD9DE"/>
+  <rect x="592" y="133" width="280" height="28" rx="6" fill="#D7E5F4"/>
+  <rect x="68" y="188" width="222" height="28" rx="6" fill="#D9E8E5"/>
+  <rect x="314" y="188" width="316" height="28" rx="6" fill="#FCE9C6"/>
+  <rect x="654" y="188" width="372" height="28" rx="6" fill="#D7E5F4"/>
+  <path d="M72 122H1034" stroke="#CDD7D6" stroke-width="2" stroke-linecap="round"/>
+  <path d="M72 178H1034" stroke="#CDD7D6" stroke-width="2" stroke-linecap="round"/>
+</svg>
