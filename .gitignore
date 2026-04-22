@@ -3,5 +3,7 @@ dist/
 vite-dev.log
 vite-dev.err.log
 *.tsbuildinfo
+__pycache__/
+*.pyc
 .env
 .env.*
