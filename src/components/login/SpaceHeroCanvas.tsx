@@ -102,40 +102,89 @@ const PLANETS: PlanetSpec[] = [
 ];
 
 const CAMERA_PATH_POINTS = [
-  new THREE.Vector3(-20.2, 11.6, 18.4),
-  new THREE.Vector3(-16.2, 10.4, 12.6),
-  new THREE.Vector3(-2.6, 9.7, 18.8),
-  new THREE.Vector3(10.4, 9.4, 19.6),
-  new THREE.Vector3(19.6, 9.1, 17.2),
-  new THREE.Vector3(26.8, 8.9, 10.8),
-  new THREE.Vector3(17.4, 0.8, 21.2),
-  new THREE.Vector3(6.2, -9.8, 17.2),
-  new THREE.Vector3(0.2, -18.2, 10.6),
-  new THREE.Vector3(0, -24.2, 9.4),
+  new THREE.Vector3(-21.4, 12.4, 17.6),
+  new THREE.Vector3(-17.2, 10.7, 11.2),
+  new THREE.Vector3(-9.2, 10.3, 20.9),
+  new THREE.Vector3(4.8, 10.9, 25.8),
+  new THREE.Vector3(17.8, 10.2, 18.1),
+  new THREE.Vector3(28.4, 9.1, 11.2),
+  new THREE.Vector3(19.4, 0.6, 24.0),
+  new THREE.Vector3(8.6, -8.8, 22.6),
+  new THREE.Vector3(2.6, -16.2, 15.2),
+  new THREE.Vector3(0.8, -22.6, 9.4),
+  new THREE.Vector3(-6.4, -12.4, 24.8),
+  new THREE.Vector3(-18.8, 2.2, 23.6),
 ];
 
 const LOOK_PATH_POINTS = [
-  new THREE.Vector3(-14.8, 9.7, 0.8),
-  new THREE.Vector3(-11.2, 9.2, -1.6),
-  new THREE.Vector3(0.8, 8.9, -2.6),
-  new THREE.Vector3(12.4, 8.8, -3.2),
+  new THREE.Vector3(-13.8, 9.4, -1.2),
+  new THREE.Vector3(-12, 8.8, -4.4),
+  new THREE.Vector3(-4.4, 8.8, -3.2),
+  new THREE.Vector3(9.6, 8.7, -4.8),
+  new THREE.Vector3(20.8, 8.5, -4.1),
   new THREE.Vector3(23.8, 8.4, -3.4),
-  new THREE.Vector3(15.2, 2.8, -1.3),
-  new THREE.Vector3(4.8, -6.4, 0.3),
-  new THREE.Vector3(0.8, -14.2, 1),
+  new THREE.Vector3(14.2, 1.6, -1.7),
+  new THREE.Vector3(4.4, -9.4, 0.4),
+  new THREE.Vector3(0.6, -16.8, 1.5),
   new THREE.Vector3(0, -18.8, 1.8),
+  new THREE.Vector3(-3.8, -8.4, -0.6),
+  new THREE.Vector3(-10.8, 4.4, -2.4),
 ];
 
 const CAMERA_FOV_STOPS = [
-  { t: 0, value: 27.8 },
-  { t: 0.18, value: 36.2 },
-  { t: 0.42, value: 29.4 },
-  { t: 0.74, value: 37.4 },
-  { t: 1, value: 31.2 },
+  { t: 0, value: 28.4 },
+  { t: 0.16, value: 33.8 },
+  { t: 0.34, value: 29.2 },
+  { t: 0.54, value: 34.9 },
+  { t: 0.74, value: 30.4 },
+  { t: 0.9, value: 35.4 },
+  { t: 1, value: 29.6 },
 ];
 
 function wrapProgress(value: number) {
   return THREE.MathUtils.euclideanModulo(value, 1);
+}
+
+const STORY_POINT_A_LOOK = new THREE.Vector3(-12.2, 8.9, -4.1);
+const STORY_POINT_B_LOOK = new THREE.Vector3(23.8, 8.4, -3.4);
+const STORY_POINT_C_LOOK = new THREE.Vector3(0, -18.6, 1.6);
+
+const STORY_POINT_A_WIDE = new THREE.Vector3(-23.8, 12.6, 19.6);
+const STORY_POINT_B_WIDE = new THREE.Vector3(13.2, 9.8, 22.4);
+const STORY_POINT_C_WIDE = new THREE.Vector3(7.4, -8.4, 23.8);
+const STORY_CAMERA_FOV = 31.4;
+
+function sampleStoryCamera(progress: number) {
+  const wrapped = wrapProgress(progress);
+  const roll = 0;
+
+  if (wrapped < 1 / 3) {
+    const t = THREE.MathUtils.smootherstep(wrapped / (1 / 3), 0, 1);
+    return {
+      camera: STORY_POINT_A_WIDE.clone().lerp(STORY_POINT_B_WIDE, t),
+      look: STORY_POINT_A_LOOK.clone().lerp(STORY_POINT_B_LOOK, t),
+      fov: STORY_CAMERA_FOV,
+      roll,
+    };
+  }
+
+  if (wrapped < 2 / 3) {
+    const t = THREE.MathUtils.smootherstep((wrapped - 1 / 3) / (1 / 3), 0, 1);
+    return {
+      camera: STORY_POINT_B_WIDE.clone().lerp(STORY_POINT_C_WIDE, t),
+      look: STORY_POINT_B_LOOK.clone().lerp(STORY_POINT_C_LOOK, t),
+      fov: STORY_CAMERA_FOV,
+      roll,
+    };
+  }
+
+  const t = THREE.MathUtils.smootherstep((wrapped - 2 / 3) / (1 / 3), 0, 1);
+  return {
+    camera: STORY_POINT_C_WIDE.clone().lerp(STORY_POINT_A_WIDE, t),
+    look: STORY_POINT_C_LOOK.clone().lerp(STORY_POINT_A_LOOK, t),
+    fov: STORY_CAMERA_FOV,
+    roll,
+  };
 }
 
 const BLACK_HOLE_VERTEX_SHADER = `
@@ -581,19 +630,8 @@ function SceneRoot({
   onBlackHoleClick: () => void;
 }) {
   const { camera } = useThree();
-  const cameraCurve = useMemo(
-    () =>
-      new THREE.CatmullRomCurve3(CAMERA_PATH_POINTS, true, "catmullrom", 0.68),
-    [],
-  );
-  const lookCurve = useMemo(
-    () =>
-      new THREE.CatmullRomCurve3(LOOK_PATH_POINTS, true, "catmullrom", 0.68),
-    [],
-  );
   const lookTarget = useRef(new THREE.Vector3());
   const cameraTarget = useRef(new THREE.Vector3());
-  const tangent = useRef(new THREE.Vector3());
   const sideVector = useRef(new THREE.Vector3());
   const liftVector = useRef(new THREE.Vector3());
   const worldUp = useRef(new THREE.Vector3(0, 1, 0));
@@ -725,23 +763,24 @@ function SceneRoot({
     );
 
     const progress = wrapProgress(scrollRef.current.current);
-    const baseCameraPoint = cameraCurve.getPointAt(progress);
-    const baseLookPoint = lookCurve.getPointAt(progress);
-    tangent.current.copy(cameraCurve.getTangentAt(progress)).normalize();
+    const storyboard = sampleStoryCamera(progress);
+    const baseCameraPoint = storyboard.camera;
+    const baseLookPoint = storyboard.look;
     sideVector.current
-      .crossVectors(tangent.current, worldUp.current)
+      .crossVectors(
+        forward.current
+          .subVectors(baseLookPoint, baseCameraPoint)
+          .normalize(),
+        worldUp.current,
+      )
       .normalize();
     liftVector.current
-      .crossVectors(sideVector.current, tangent.current)
+      .crossVectors(sideVector.current, forward.current)
       .normalize();
 
     const motionBias = scrollRef.current.target - scrollRef.current.current;
-    const sideDrift =
-      Math.sin(progress * Math.PI * 3.1) * 0.24 +
-      THREE.MathUtils.clamp(motionBias * 3.6, -0.1, 0.1);
-    const liftDrift =
-      Math.sin(progress * Math.PI * 4.6 + 0.4) * 0.13 +
-      THREE.MathUtils.clamp(Math.abs(motionBias) * 0.38, 0, 0.1);
+    const sideDrift = THREE.MathUtils.clamp(motionBias * 0.8, -0.018, 0.018);
+    const liftDrift = THREE.MathUtils.clamp(Math.abs(motionBias) * 0.08, 0, 0.018);
 
     cameraTarget.current
       .copy(baseCameraPoint)
@@ -769,7 +808,7 @@ function SceneRoot({
         .addScaledVector(blastVector, blastPush * 28)
         .addScaledVector(sideVector.current, shakeX)
         .addScaledVector(liftVector.current, shakeY)
-        .addScaledVector(tangent.current, shakeZ);
+        .addScaledVector(forward.current, shakeZ);
 
       lookTarget.current
         .copy(baseLookPoint)
@@ -782,18 +821,18 @@ function SceneRoot({
 
     perspectiveCamera.position.lerp(
       cameraTarget.current,
-      1 - Math.exp(-delta * (sceneBlastProgress > 0 ? 4.2 : 2.8)),
+      1 - Math.exp(-delta * (sceneBlastProgress > 0 ? 4.2 : 2.35)),
     );
     perspectiveCamera.lookAt(lookTarget.current);
 
     const targetFov =
-      sampleScalarStops(CAMERA_FOV_STOPS, progress) +
+      storyboard.fov +
       THREE.MathUtils.smootherstep(sceneBlastProgress, 0, 0.4) * 22 -
       THREE.MathUtils.smootherstep(sceneBlastProgress, 0.58, 1) * 8;
     perspectiveCamera.fov = THREE.MathUtils.lerp(
       perspectiveCamera.fov,
       targetFov,
-      1 - Math.exp(-delta * (sceneBlastProgress > 0 ? 4.6 : 2.1)),
+      1 - Math.exp(-delta * (sceneBlastProgress > 0 ? 4.6 : 2.35)),
     );
     perspectiveCamera.updateProjectionMatrix();
 
@@ -802,7 +841,7 @@ function SceneRoot({
       .normalize();
     rollQuaternion.current.setFromAxisAngle(
       forward.current,
-      tangent.current.x * 0.03 + Math.sin(progress * Math.PI * 3.2) * 0.01,
+      storyboard.roll,
     );
     lookQuaternion.current.copy(perspectiveCamera.quaternion);
     perspectiveCamera.quaternion.slerp(
@@ -833,7 +872,6 @@ function SceneRoot({
       {children ? <LoginAnchor>{children}</LoginAnchor> : null}
       <AsteroidField
         pointerRef={pointerRef}
-        lookCurve={lookCurve}
         scrollRef={scrollRef}
         sceneBlast={sceneBlast}
       />
@@ -1570,12 +1608,10 @@ function PlanetCluster({
 
 function AsteroidField({
   pointerRef,
-  lookCurve,
   scrollRef,
   sceneBlast,
 }: {
   pointerRef: React.MutableRefObject<PointerState>;
-  lookCurve: THREE.CatmullRomCurve3;
   scrollRef: React.MutableRefObject<ScrollState>;
   sceneBlast: SceneBlastState;
 }) {
@@ -1610,7 +1646,7 @@ function AsteroidField({
           );
 
     focusPoint.current.copy(
-      lookCurve.getPointAt(wrapProgress(scrollRef.current.current)),
+      sampleStoryCamera(scrollRef.current.current).look,
     );
     const pointer = pointerRef.current;
     pointerWorld.current.set(

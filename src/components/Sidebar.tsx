@@ -22,9 +22,9 @@ export function Sidebar({
   onLogout,
 }: SidebarProps) {
   return (
-    <aside className="sticky top-0 hidden h-screen border-r bg-card lg:flex lg:flex-col">
+    <aside className="sticky top-0 hidden h-screen border-r border-border/80 bg-card/95 backdrop-blur lg:flex lg:flex-col">
       <div className="flex items-center gap-3 border-b px-5 py-5">
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(17,21,51,0.98),rgba(37,122,110,0.94))] text-sm font-semibold tracking-[0.18em] text-white shadow-[0_12px_24px_rgba(17,21,51,0.18)]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7f68a5,#4f3c5d)] text-sm font-semibold tracking-[0.18em] text-[hsl(var(--primary-foreground))] shadow-[0_12px_24px_rgba(40,24,52,0.28)]">
           DEV
         </div>
         <div className="min-w-0 leading-tight">
@@ -43,7 +43,7 @@ export function Sidebar({
           className={cn(
             "h-11 w-full justify-start rounded-none px-5 transition-colors",
             activeModule === "clockify"
-              ? "border-y border-[rgba(88,174,160,0.18)] bg-[rgba(88,174,160,0.16)] text-[hsl(var(--sea-ink))] hover:bg-[rgba(88,174,160,0.20)] hover:text-[hsl(var(--sea-ink))]"
+              ? "border-y border-primary/20 bg-primary/12 text-foreground hover:bg-primary/16 hover:text-foreground"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",
           )}
           onClick={() => onSelectModule("clockify")}
@@ -56,7 +56,7 @@ export function Sidebar({
           className={cn(
             "h-11 w-full justify-start rounded-none px-5 transition-colors",
             activeModule === "rules"
-              ? "border-y border-[rgba(88,174,160,0.18)] bg-[rgba(88,174,160,0.16)] text-[hsl(var(--sea-ink))] hover:bg-[rgba(88,174,160,0.20)] hover:text-[hsl(var(--sea-ink))]"
+              ? "border-y border-primary/20 bg-primary/12 text-foreground hover:bg-primary/16 hover:text-foreground"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",
           )}
           onClick={() => onSelectModule("rules")}

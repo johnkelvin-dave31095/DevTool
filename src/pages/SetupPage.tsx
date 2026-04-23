@@ -44,13 +44,13 @@ export function SetupPage({
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,rgba(246,251,250,0.98),rgba(239,246,244,0.96))] px-6 py-10 text-foreground sm:px-10">
+    <div className="min-h-screen bg-[linear-gradient(180deg,rgba(79,60,93,0.38),rgba(28,21,36,0.96))] px-6 py-10 text-foreground sm:px-10">
       <div className="mx-auto max-w-4xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
             <span>Settings</span>
             <ChevronRight className="h-4 w-4" />
-            <span className="text-[hsl(var(--sea-ink))]">Clockify setup</span>
+            <span className="text-foreground">Clockify setup</span>
           </div>
           <div className="flex flex-wrap gap-3">
             {isEditing && onCancel ? (
@@ -74,29 +74,29 @@ export function SetupPage({
           </div>
         </div>
 
-        <div className="mt-6 border border-[rgba(37,122,110,0.12)] bg-[rgba(255,255,255,0.94)] p-6 shadow-[0_18px_40px_rgba(34,88,82,0.08)]">
+        <div className="mt-6 border border-border/80 bg-card/95 p-6 shadow-[0_18px_40px_rgba(20,14,28,0.28)]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(37,122,110,0.10)] text-primary">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/12 text-primary">
                   <Settings2 className="h-5 w-5" />
                 </span>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
                     Clockify setup
                   </p>
-                  <h1 className="mt-1 font-studio text-3xl font-semibold tracking-[-0.05em] text-[hsl(var(--sea-ink))]">
+                  <h1 className="mt-1 font-studio text-3xl font-semibold tracking-[-0.05em] text-foreground">
                     {isEditing ? "Update credentials" : "Connect workspace"}
                   </h1>
                 </div>
               </div>
             </div>
-            <div className="min-w-[220px] border border-[rgba(37,122,110,0.10)] bg-[rgba(247,250,249,0.88)] px-4 py-3">
+            <div className="min-w-[220px] border border-border/80 bg-muted/50 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
                 Account
               </p>
-              <p className="mt-2 truncate text-sm font-semibold text-[hsl(var(--sea-ink))]">{email}</p>
-              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+              <p className="mt-2 truncate text-sm font-semibold text-foreground">{email}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
                 Outlook requests stay mapped to this user.
               </p>
             </div>
@@ -114,7 +114,7 @@ export function SetupPage({
                   value={clockifyApiKey}
                   onChange={(event) => setClockifyApiKey(event.target.value)}
                   placeholder={hasExistingApiKey ? "Enter a new Clockify API key" : ""}
-                  className="h-12 rounded-none border-[rgba(37,122,110,0.14)] bg-white text-[15px] shadow-none"
+                  className="h-12 rounded-none border-border bg-background/80 text-[15px] shadow-none"
                 />
               </div>
 
@@ -127,12 +127,12 @@ export function SetupPage({
                   type="text"
                   value={clockifyWorkspaceId}
                   onChange={(event) => setClockifyWorkspaceId(event.target.value)}
-                  className="h-12 rounded-none border-[rgba(37,122,110,0.14)] bg-white text-[15px] shadow-none"
+                  className="h-12 rounded-none border-border bg-background/80 text-[15px] shadow-none"
                 />
               </div>
             </div>
 
-            <div className="flex items-start gap-2 border border-[rgba(37,122,110,0.10)] bg-[rgba(247,250,249,0.88)] px-4 py-3 text-sm text-[hsl(var(--muted-foreground))]">
+            <div className="flex items-start gap-2 border border-border/80 bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
               <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <p>Stored per user. The workspace id is prefilled for your shared company workspace.</p>
             </div>
@@ -147,7 +147,7 @@ export function SetupPage({
               <Button
                 type="submit"
                 disabled={isSaving}
-                className="h-12 rounded-full bg-[#111533] px-6 text-[15px] font-semibold text-white shadow-[0_14px_30px_rgba(17,21,51,0.18)] hover:bg-[#171c42]"
+                className="h-12 rounded-full px-6 text-[15px] font-semibold shadow-[0_14px_30px_rgba(36,24,48,0.26)]"
               >
                 <Save className="h-4 w-4" />
                 {isSaving ? "Saving setup" : isEditing ? "Update setup" : "Save setup"}

@@ -190,14 +190,14 @@ export function PreloadRulesPage({ currentEmail }: { currentEmail: string }) {
 
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-      <Card className="overflow-hidden border-[rgba(37,122,110,0.12)] bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(244,250,248,0.95))]">
-        <CardHeader className="gap-3 border-b border-[rgba(37,122,110,0.10)] pb-5">
+      <Card className="overflow-hidden border-border/80 bg-[linear-gradient(135deg,rgba(56,42,68,0.98),rgba(39,28,48,0.95))]">
+        <CardHeader className="gap-3 border-b border-border/80 pb-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-2xl">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
                 Management
               </p>
-              <CardTitle className="mt-2 font-studio text-3xl tracking-[-0.04em] text-[hsl(var(--sea-ink))]">
+              <CardTitle className="mt-2 font-studio text-3xl tracking-[-0.04em] text-foreground">
                 Outlook preload rules
               </CardTitle>
               <CardDescription className="mt-2 max-w-xl">
@@ -217,10 +217,10 @@ export function PreloadRulesPage({ currentEmail }: { currentEmail: string }) {
           </div>
         </CardHeader>
         <CardContent className="grid gap-6 pt-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <Card className="border-[rgba(37,122,110,0.10)] bg-[rgba(250,252,251,0.92)] shadow-none">
+          <Card className="border-border/80 bg-muted/35 shadow-none">
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[rgba(37,122,110,0.10)] text-primary">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/12 text-primary">
                   <SlidersHorizontal className="h-5 w-5" />
                 </div>
                 <div>
@@ -334,7 +334,7 @@ export function PreloadRulesPage({ currentEmail }: { currentEmail: string }) {
                   <Button
                     type="submit"
                     disabled={isSavingMapping}
-                    className="h-11 rounded-full bg-[#111533] px-5 text-white hover:bg-[#171c42]"
+                    className="h-11 rounded-full px-5 shadow-[0_12px_28px_rgba(36,24,48,0.26)]"
                   >
                     <Plus className="h-4 w-4" />
                     {isSavingMapping ? "Saving rule" : "Add rule"}
@@ -344,8 +344,8 @@ export function PreloadRulesPage({ currentEmail }: { currentEmail: string }) {
             </CardContent>
           </Card>
 
-          <Card className="border-[rgba(37,122,110,0.10)] bg-white shadow-none">
-            <CardHeader className="border-b border-[rgba(37,122,110,0.08)]">
+          <Card className="border-border/80 bg-card/80 shadow-none">
+            <CardHeader className="border-b border-border/80">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle>Existing rules</CardTitle>
@@ -354,7 +354,7 @@ export function PreloadRulesPage({ currentEmail }: { currentEmail: string }) {
                   </CardDescription>
                 </div>
                 {isLoadingMappings ? (
-                  <span className="text-xs text-[hsl(var(--muted-foreground))]">Loading...</span>
+                  <span className="text-xs text-muted-foreground">Loading...</span>
                 ) : (
                   <span className="text-xs uppercase tracking-[0.18em] text-primary">
                     {mappingRules.length} total
@@ -364,7 +364,7 @@ export function PreloadRulesPage({ currentEmail }: { currentEmail: string }) {
             </CardHeader>
             <CardContent className="space-y-3 pt-6">
               {!isLoadingMappings && mappingRules.length === 0 ? (
-                <div className="border border-dashed border-[rgba(37,122,110,0.16)] bg-[rgba(250,252,251,0.92)] px-4 py-5 text-sm text-[hsl(var(--muted-foreground))]">
+                <div className="border border-dashed border-border/80 bg-muted/35 px-4 py-5 text-sm text-muted-foreground">
                   No preload rules yet.
                 </div>
               ) : null}
@@ -372,22 +372,22 @@ export function PreloadRulesPage({ currentEmail }: { currentEmail: string }) {
               {mappingRules.map((rule) => (
                 <div
                   key={rule.id}
-                  className="flex items-start justify-between gap-4 border border-[rgba(37,122,110,0.10)] bg-[rgba(250,252,251,0.78)] px-4 py-4"
+                  className="flex items-start justify-between gap-4 border border-border/80 bg-background/45 px-4 py-4"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-[hsl(var(--sea-ink))]">{rule.matchValue}</p>
+                      <p className="font-semibold text-foreground">{rule.matchValue}</p>
                       <span className="text-[10px] uppercase tracking-[0.18em] text-primary">
                         {rule.matchType === "exact_title" ? "Exact" : "Contains"}
                       </span>
-                      <span className="text-[10px] uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
+                      <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                         {rule.scope}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">
+                    <p className="mt-2 text-sm text-muted-foreground">
                       {rule.projectName} / {rule.taskName}
                     </p>
-                    <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {rule.descriptionTemplate || "No default description"}
                     </p>
                   </div>
@@ -395,7 +395,7 @@ export function PreloadRulesPage({ currentEmail }: { currentEmail: string }) {
                     type="button"
                     variant="ghost"
                     disabled={deletingRuleId === rule.id}
-                    className="h-9 w-9 rounded-full p-0 text-[hsl(var(--muted-foreground))] hover:text-accent"
+                    className="h-9 w-9 rounded-full p-0 text-muted-foreground hover:text-accent"
                     onClick={() => void handleDeleteMapping(rule.id)}
                   >
                     <Trash2 className="h-4 w-4" />

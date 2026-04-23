@@ -431,7 +431,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
   return (
     <div className="space-y-5 px-4 py-5 sm:px-6 lg:px-8">
       <section className="sticky top-16 z-20">
-        <Card className="overflow-hidden rounded-none border border-black/10 bg-[rgba(255,255,255,0.98)] shadow-[0_10px_24px_rgba(40,92,86,0.06)] backdrop-blur-md">
+        <Card className="overflow-hidden rounded-none border border-border/80 bg-card/95 shadow-[0_10px_24px_rgba(20,14,28,0.22)] backdrop-blur-md">
           <CardContent className="p-0">
             <div className="flex flex-col xl:flex-row xl:items-stretch">
               <div className="min-w-0 px-4 py-3 xl:flex-1">
@@ -439,26 +439,26 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge
                       variant="secondary"
-                      className="h-6 border border-primary/15 bg-primary/10 px-2.5 text-[10px] text-[hsl(var(--sea-ink))]"
+                      className="h-6 border border-primary/15 bg-primary/10 px-2.5 text-[10px] text-foreground"
                     >
                       {syncStatus.label}
                     </Badge>
-                    <Badge className="h-6 bg-[rgba(88,174,160,0.12)] px-2.5 text-[10px] text-primary">
+                    <Badge className="h-6 bg-primary/12 px-2.5 text-[10px] text-primary">
                       Premium sync
                     </Badge>
-                    <Badge className="h-6 bg-[rgba(18,97,112,0.08)] px-2.5 text-[10px] text-[rgba(18,97,112,0.88)]">
+                    <Badge className="h-6 bg-secondary/55 px-2.5 text-[10px] text-foreground">
                       UTC-7 window
                     </Badge>
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <h1 className="font-studio text-[2rem] font-semibold leading-none tracking-[-0.04em] text-[hsl(var(--sea-ink))]">
+                    <h1 className="font-studio text-[2rem] font-semibold leading-none tracking-[-0.04em] text-foreground">
                       Outlook to Clockify
                     </h1>
                   </div>
                 </div>
               </div>
 
-              <div className="hidden w-px shrink-0 bg-black/15 xl:block" />
+              <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
 
               <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 xl:min-w-[360px] xl:grid-cols-2 xl:items-center">
                 <StudioField label="Start">
@@ -467,7 +467,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                     type="date"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
-                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-white text-[hsl(var(--sea-ink))] shadow-none [color-scheme:light]"
+                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-background/80 text-foreground shadow-none [color-scheme:dark]"
                   />
                 </StudioField>
                 <StudioField label="End">
@@ -476,12 +476,12 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                     type="date"
                     value={endDate}
                     onChange={(event) => setEndDate(event.target.value)}
-                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-white text-[hsl(var(--sea-ink))] shadow-none [color-scheme:light]"
+                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-background/80 text-foreground shadow-none [color-scheme:dark]"
                   />
                 </StudioField>
               </div>
 
-              <div className="hidden w-px shrink-0 bg-black/15 xl:block" />
+              <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
 
               <div className="flex flex-wrap items-center gap-2 px-4 py-3 xl:min-w-[290px] xl:justify-center">
                 <InlineStat label="Draft" value={String(reviewedRows.length)} />
@@ -494,13 +494,13 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                 />
               </div>
 
-              <div className="hidden w-px shrink-0 bg-black/15 xl:block" />
+              <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
 
               <div className="px-4 py-3 xl:flex xl:min-w-[190px] xl:items-center xl:justify-center">
                 <Button
                   onClick={handlePrepareReview}
                   disabled={isPreparingReview || isSubmitting}
-                  className="h-11 w-full rounded-full border-0 bg-[#111533] px-7 text-[15px] font-semibold text-white shadow-[0_10px_24px_rgba(17,21,51,0.18)] hover:bg-[#171c42] xl:w-auto xl:min-w-[160px]"
+                  className="h-11 w-full rounded-full border-0 px-7 text-[15px] font-semibold shadow-[0_10px_24px_rgba(20,14,28,0.28)] xl:w-auto xl:min-w-[160px]"
                 >
                   <RefreshCw
                     className={cn(
@@ -516,16 +516,16 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
         </Card>
 
         {isBusy ? (
-          <div className="border-x border-b border-black/10 bg-[rgba(255,255,255,0.92)] px-3 py-2 shadow-[0_8px_18px_rgba(40,92,86,0.05)]">
+          <div className="border-x border-b border-border/80 bg-card/92 px-3 py-2 shadow-[0_8px_18px_rgba(20,14,28,0.18)]">
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(88,174,160,0.10)]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/12">
                 <Lottie
                   animationData={clockTimeAnimation}
                   loop
                   className="h-9 w-9"
                 />
               </div>
-              <p className="font-semibold text-[hsl(var(--sea-ink))]">
+              <p className="font-semibold text-foreground">
                 {isPreparingReview
                   ? "Building review table"
                   : "Pushing to Clockify"}
@@ -545,23 +545,23 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
       ) : null}
 
       <section>
-        <Card className="overflow-hidden border-[hsl(var(--border))] bg-[rgba(255,255,255,0.92)] shadow-[0_22px_60px_rgba(44,102,96,0.08)]">
-          <CardHeader className="border-b border-[rgba(37,122,110,0.10)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(246,249,248,0.88))] px-4 py-3">
+        <Card className="overflow-hidden border-[hsl(var(--border))] bg-card/92 shadow-[0_22px_60px_rgba(20,14,28,0.24)]">
+          <CardHeader className="border-b border-border/80 bg-[linear-gradient(180deg,rgba(56,42,68,0.92),rgba(39,28,48,0.88))] px-4 py-3">
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex min-w-0 flex-col xl:flex-row xl:items-center xl:gap-3">
-                <CardTitle className="font-studio shrink-0 text-3xl font-semibold tracking-[-0.04em] text-[hsl(var(--sea-ink))]">
+                <CardTitle className="font-studio shrink-0 text-3xl font-semibold tracking-[-0.04em] text-foreground">
                   Sync Review Table
                 </CardTitle>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-sm xl:justify-end">
                 <InlineStat label="Ready" value={String(summary.readyCount)} />
-                <span className="h-1 w-1 rounded-full bg-[rgba(37,122,110,0.24)]" />
+                <span className="h-1 w-1 rounded-full bg-primary/35" />
                 <InlineStat
                   label="Review"
                   value={String(summary.needsReviewCount + summary.errorCount)}
                 />
-                <span className="h-1 w-1 rounded-full bg-[rgba(37,122,110,0.24)]" />
+                <span className="h-1 w-1 rounded-full bg-primary/35" />
                 <InlineStat
                   label="Skipped"
                   value={String(summary.skippedCount)}
@@ -571,12 +571,12 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
           </CardHeader>
           <CardContent className="space-y-4 p-5 pt-4">
             {reviewedRows.length === 0 ? (
-              <div className="rounded-[22px] border border-dashed border-[rgba(37,122,110,0.18)] bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(244,249,247,0.92))] px-5 py-5 text-sm text-[hsl(var(--muted-foreground))]">
+              <div className="rounded-[22px] border border-dashed border-border/80 bg-[linear-gradient(135deg,rgba(56,42,68,0.94),rgba(39,28,48,0.92))] px-5 py-5 text-sm text-muted-foreground">
                 No review rows.
               </div>
             ) : (
               <>
-                <div className="overflow-hidden border border-[rgba(37,122,110,0.10)] bg-white">
+                <div className="overflow-hidden border border-border/80 bg-card/70">
                   <table className="w-full table-fixed border-collapse bg-background text-sm">
                     <colgroup>
                       <col className="w-[6.5%]" />
@@ -587,7 +587,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                       <col className="w-[17.5%]" />
                       <col className="w-[19%]" />
                     </colgroup>
-                    <thead className="bg-[linear-gradient(180deg,rgba(244,249,247,0.98),rgba(251,253,252,0.94))] text-left text-[11px] uppercase tracking-[0.28em] text-[hsl(var(--muted-foreground))]">
+                    <thead className="bg-[linear-gradient(180deg,rgba(64,48,79,0.98),rgba(47,35,59,0.94))] text-left text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2.5 font-semibold">Sync</th>
                         <th className="px-3 py-2.5 font-semibold">
@@ -631,7 +631,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                   <Button
                     onClick={handlePushToClockify}
                     disabled={!summary.canSubmit || isSubmitting}
-                    className="h-11 rounded-2xl bg-primary px-5 text-primary-foreground shadow-[0_14px_28px_rgba(31,124,111,0.22)] hover:bg-primary/90"
+                    className="h-11 rounded-2xl bg-primary px-5 text-primary-foreground shadow-[0_14px_28px_rgba(36,24,48,0.28)] hover:bg-primary/90"
                   >
                     {isSubmitting ? (
                       <span className="-my-2 flex h-9 w-9 items-center justify-center">
@@ -704,19 +704,19 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
 
       {activeDescriptionRow ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(16,30,28,0.30)] px-4 py-6 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(18,12,24,0.48)] px-4 py-6 backdrop-blur-[2px]"
           onClick={() => setActiveDescriptionRowId(null)}
         >
           <div
-            className="w-full max-w-2xl rounded-[28px] border border-[rgba(37,122,110,0.12)] bg-[rgba(255,255,255,0.98)] p-5 shadow-[0_28px_80px_rgba(24,73,67,0.18)]"
+            className="w-full max-w-2xl rounded-[28px] border border-border/80 bg-card/98 p-5 shadow-[0_28px_80px_rgba(18,12,24,0.42)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <h3 className="font-studio text-2xl font-semibold tracking-[-0.03em] text-[hsl(var(--sea-ink))]">
+                <h3 className="font-studio text-2xl font-semibold tracking-[-0.03em] text-foreground">
                   {activeDescriptionRow.sourceTitle}
                 </h3>
-                <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">
+                <p className="mt-2 text-sm text-muted-foreground">
                   {formatDateTime(activeDescriptionRow.start)} -{" "}
                   {formatDateTime(activeDescriptionRow.end)}
                 </p>
@@ -745,7 +745,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                 }
                 rows={10}
                 placeholder="Add description"
-                className="min-h-[240px] w-full resize-none overflow-x-hidden rounded-[22px] border border-[rgba(37,122,110,0.14)] bg-[rgba(247,250,249,0.72)] px-4 py-3 text-sm leading-6 text-[hsl(var(--sea-ink))] outline-none transition-colors placeholder:text-[hsl(var(--muted-foreground))] [overflow-wrap:anywhere] [word-break:break-word] focus:border-[rgba(37,122,110,0.26)]"
+                className="min-h-[240px] w-full resize-none overflow-x-hidden rounded-[22px] border border-border/80 bg-background/70 px-4 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground [overflow-wrap:anywhere] [word-break:break-word] focus:border-primary/40"
               />
             </div>
 
@@ -766,9 +766,9 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
         <div className="fixed bottom-5 right-5 z-50 w-full max-w-sm">
           <div
             className={cn(
-              "border bg-[rgba(255,255,255,0.98)] p-4 shadow-[0_22px_48px_rgba(24,73,67,0.18)] backdrop-blur-md",
+              "border bg-card/98 p-4 shadow-[0_22px_48px_rgba(18,12,24,0.42)] backdrop-blur-md",
               toast.tone === "success"
-                ? "border-[rgba(37,122,110,0.18)]"
+                ? "border-primary/24"
                 : "border-[rgba(240,119,93,0.22)]",
             )}
           >
@@ -788,11 +788,11 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                 )}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-[hsl(var(--sea-ink))]">
+                <p className="font-semibold text-foreground">
                   {toast.title}
                 </p>
                 {toast.detail ? (
-                  <p className="mt-1 text-sm leading-6 text-[hsl(var(--muted-foreground))]">
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
                     {toast.detail}
                   </p>
                 ) : null}
@@ -843,16 +843,15 @@ function SyncReviewRow({
   return (
     <tr
       className={cn(
-        "border-t border-[rgba(37,122,110,0.1)] align-middle transition-colors hover:bg-[rgba(37,122,110,0.03)]",
-        row.status === "ready" && "bg-[rgba(35,140,126,0.035)]",
+        "border-t border-border/80 align-middle transition-colors hover:bg-muted/25",
+        row.status === "ready" && "bg-primary/6",
         row.status === "needs_review" && "bg-[rgba(243,189,93,0.08)]",
         row.status === "error" && "bg-[rgba(240,119,93,0.08)]",
-        row.status === "skipped" &&
-          "bg-[rgba(133,153,149,0.08)] text-muted-foreground",
+        row.status === "skipped" && "bg-muted/40 text-muted-foreground",
       )}
     >
       <td className="px-3 py-2">
-        <label className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--sea-ink))]">
+        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
           <input
             type="checkbox"
             checked={row.include}
@@ -862,14 +861,14 @@ function SyncReviewRow({
           {row.include ? "Include" : "Skip"}
         </label>
       </td>
-      <td className="border-l border-[rgba(37,122,110,0.08)] px-3 py-2">
+      <td className="border-l border-border/70 px-3 py-2">
         <div className="min-w-0 space-y-0.5">
           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-primary">
             <Clock3 className="h-3 w-3" />
             Event
           </div>
           <p
-            className="truncate font-semibold leading-5 text-[hsl(var(--sea-ink))]"
+            className="truncate font-semibold leading-5 text-foreground"
             title={row.sourceTitle}
           >
             {row.sourceTitle}
@@ -879,12 +878,12 @@ function SyncReviewRow({
           </p>
         </div>
       </td>
-      <td className="border-l border-[rgba(37,122,110,0.08)] px-3 py-2">
+      <td className="border-l border-border/70 px-3 py-2">
         <Select
           value={row.projectId}
           onChange={(event) => onProjectChange(event.target.value)}
           disabled={!row.include}
-          className="h-9 w-full rounded-none border-[rgba(37,122,110,0.14)] bg-white shadow-none"
+          className="h-9 w-full rounded-none border-border bg-background/80 shadow-none"
         >
           <option value="">Select project</option>
           {projects.map((project) => (
@@ -894,12 +893,12 @@ function SyncReviewRow({
           ))}
         </Select>
       </td>
-      <td className="border-l border-[rgba(37,122,110,0.08)] px-3 py-2">
+      <td className="border-l border-border/70 px-3 py-2">
         <Select
           value={row.taskId}
           onChange={(event) => onTaskChange(event.target.value)}
           disabled={!row.include || !row.projectId}
-          className="h-9 w-full rounded-none border-[rgba(37,122,110,0.14)] bg-white shadow-none"
+          className="h-9 w-full rounded-none border-border bg-background/80 shadow-none"
         >
           <option value="">
             {row.projectId ? "Select task" : "Pick project first"}
@@ -911,7 +910,7 @@ function SyncReviewRow({
           ))}
         </Select>
       </td>
-      <td className="border-l border-[rgba(37,122,110,0.08)] px-3 py-2">
+      <td className="border-l border-border/70 px-3 py-2">
         <Input
           type="number"
           min="0.25"
@@ -919,20 +918,20 @@ function SyncReviewRow({
           value={row.hours > 0 ? String(row.hours) : ""}
           onChange={(event) => onHoursChange(event.target.value)}
           disabled={!row.include}
-          className="h-9 w-24 rounded-none border-[rgba(37,122,110,0.14)] bg-white shadow-none"
+          className="h-9 w-24 rounded-none border-border bg-background/80 shadow-none"
         />
       </td>
-      <td className="border-l border-[rgba(37,122,110,0.08)] px-3 py-2">
+      <td className="border-l border-border/70 px-3 py-2">
         <div className="min-w-0">
           <button
             type="button"
             onClick={onEditDescription}
             disabled={!row.include}
-            className="flex h-9 w-full items-center justify-between gap-3 rounded-none border border-[rgba(37,122,110,0.14)] bg-white px-3 py-0 text-left shadow-none transition-colors hover:border-[rgba(37,122,110,0.24)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-9 w-full items-center justify-between gap-3 rounded-none border border-border bg-background/80 px-3 py-0 text-left shadow-none transition-colors hover:border-primary/28 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span
               className={cn(
-                "min-w-0 flex-1 truncate text-sm text-[hsl(var(--sea-ink))]",
+                "min-w-0 flex-1 truncate text-sm text-foreground",
                 !hasDescription && "text-[hsl(var(--muted-foreground))]",
               )}
             >
@@ -946,7 +945,7 @@ function SyncReviewRow({
           </button>
         </div>
       </td>
-      <td className="border-l border-[rgba(37,122,110,0.08)] px-3 py-2">
+      <td className="border-l border-border/70 px-3 py-2">
         <div className="min-w-0 space-y-1">
           <StatusBadge status={row.status} />
           {issueSummary ? (
@@ -1006,11 +1005,11 @@ function CompactStat({
   detail: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[rgba(37,122,110,0.10)] bg-white px-3 py-3 shadow-[0_10px_24px_rgba(35,101,91,0.04)]">
+    <div className="rounded-2xl border border-border/80 bg-card/72 px-3 py-3 shadow-[0_10px_24px_rgba(18,12,24,0.18)]">
       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
         {label}
       </p>
-      <p className="mt-1.5 text-[1.5rem] font-semibold leading-none tracking-[-0.04em] text-[hsl(var(--sea-ink))]">
+      <p className="mt-1.5 text-[1.5rem] font-semibold leading-none tracking-[-0.04em] text-foreground">
         {value}
       </p>
       <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">
@@ -1026,7 +1025,7 @@ function InlineStat({ label, value }: { label: string; value: string }) {
       <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[hsl(var(--muted-foreground))]">
         {label}
       </span>
-      <span className="text-lg font-semibold tracking-[-0.03em] text-[hsl(var(--sea-ink))]">
+      <span className="text-lg font-semibold tracking-[-0.03em] text-foreground">
         {value}
       </span>
     </div>
@@ -1043,9 +1042,9 @@ function TableHeroStat({
   tone: "default" | "accent" | "muted";
 }) {
   const tones = {
-    default: "border-primary/16 bg-[rgba(41,145,131,0.06)] text-primary",
+    default: "border-primary/16 bg-primary/10 text-primary",
     accent: "border-accent/16 bg-[rgba(240,119,93,0.06)] text-accent",
-    muted: "border-border bg-[rgba(140,156,151,0.08)] text-muted-foreground",
+    muted: "border-border bg-muted/40 text-muted-foreground",
   };
 
   return (

@@ -266,12 +266,12 @@ export default function App() {
 
   if (setupState === "checking") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,rgba(246,251,250,0.98),rgba(239,246,244,0.96))] px-6">
-        <div className="border border-[rgba(37,122,110,0.12)] bg-[rgba(255,255,255,0.92)] px-8 py-6 text-center shadow-[0_24px_48px_rgba(34,88,82,0.10)]">
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,rgba(79,60,93,0.38),rgba(28,21,36,0.96))] px-6">
+        <div className="border border-border/80 bg-card/95 px-8 py-6 text-center shadow-[0_24px_48px_rgba(20,14,28,0.28)]">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
             DevTool
           </p>
-          <p className="mt-3 font-studio text-2xl font-semibold tracking-[-0.04em] text-[hsl(var(--sea-ink))]">
+          <p className="mt-3 font-studio text-2xl font-semibold tracking-[-0.04em] text-foreground">
             Checking workspace setup
           </p>
         </div>
@@ -322,20 +322,20 @@ export default function App() {
         </div>
       </div>
       {isSettingsOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(12,31,29,0.28)] p-6 backdrop-blur-sm">
-          <div className="w-full max-w-2xl border border-[rgba(37,122,110,0.12)] bg-[rgba(255,255,255,0.98)] shadow-[0_24px_60px_rgba(28,77,71,0.16)]">
-            <div className="flex items-center justify-between border-b border-[rgba(37,122,110,0.10)] px-6 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(18,12,24,0.48)] p-6 backdrop-blur-sm">
+          <div className="w-full max-w-2xl border border-border/80 bg-card/98 shadow-[0_24px_60px_rgba(18,12,24,0.42)]">
+            <div className="flex items-center justify-between border-b border-border/80 px-6 py-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
                   Settings
                 </p>
-                <h2 className="mt-1 font-studio text-2xl font-semibold tracking-[-0.04em] text-[hsl(var(--sea-ink))]">
+                <h2 className="mt-1 font-studio text-2xl font-semibold tracking-[-0.04em] text-foreground">
                   DevTool settings
                 </h2>
               </div>
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(37,122,110,0.12)] text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--sea-ink))]"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border/80 text-muted-foreground transition-colors hover:text-foreground"
                 onClick={() => setIsSettingsOpen(false)}
               >
                 <X className="h-4 w-4" />
@@ -388,7 +388,7 @@ function ModuleRail({
   onSelectModule: (module: AppModule) => void;
 }) {
   return (
-    <div className="border-b border-[rgba(37,122,110,0.10)] bg-[rgba(255,255,255,0.86)] px-4 py-3 lg:hidden">
+    <div className="border-b border-border/80 bg-card/90 px-4 py-3 backdrop-blur lg:hidden">
       <div className="flex gap-2 overflow-x-auto">
         <Button
           type="button"
@@ -442,15 +442,15 @@ function SettingsMenuItem({
       type="button"
       onClick={onClick}
       disabled={!isInteractive}
-      className="flex items-center justify-between gap-4 border border-[rgba(37,122,110,0.10)] bg-[rgba(250,252,251,0.92)] px-4 py-4 text-left transition-colors enabled:hover:border-[rgba(37,122,110,0.18)] enabled:hover:bg-white disabled:cursor-default"
+      className="flex items-center justify-between gap-4 border border-border/80 bg-muted/35 px-4 py-4 text-left transition-colors enabled:hover:border-primary/24 enabled:hover:bg-muted/60 disabled:cursor-default"
     >
       <div className="flex min-w-0 items-start gap-3">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgba(37,122,110,0.10)] text-primary">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary">
           {icon}
         </span>
         <div className="min-w-0">
-          <p className="font-semibold text-[hsl(var(--sea-ink))]">{title}</p>
-          <p className="mt-1 truncate text-sm text-[hsl(var(--muted-foreground))]">{detail}</p>
+          <p className="font-semibold text-foreground">{title}</p>
+          <p className="mt-1 truncate text-sm text-muted-foreground">{detail}</p>
         </div>
       </div>
       {actionLabel ? (
