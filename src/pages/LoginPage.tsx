@@ -1,151 +1,172 @@
-import { useState } from "react";
-import { ArrowRight, KeyRound, ShieldCheck, Wrench } from "lucide-react";
+import { Suspense, lazy, useEffect, useState } from "react";
 
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 
+const SpaceHeroCanvas = lazy(async () => {
+  const module = await import("../components/login/SpaceHeroCanvas");
+  return { default: module.SpaceHeroCanvas };
+});
+
 type LoginPageProps = {
   onLogin: (payload: { email: string; password: string }) => void | Promise<void>;
   isLoggingIn: boolean;
+  isLaunching: boolean;
   error: string | null;
+  onLaunchComplete: () => void;
 };
 
-export function LoginPage({ onLogin, isLoggingIn, error }: LoginPageProps) {
+export function LoginPage({
+  onLogin,
+  isLoggingIn,
+  isLaunching,
+  error,
+  onLaunchComplete,
+}: LoginPageProps) {
   const [email, setEmail] = useState("johnkelvin.dave@oaktechsystems.com");
   const [password, setPassword] = useState("");
+  const [resetSignal, setResetSignal] = useState(0);
+  const [isPreviewLaunching, setIsPreviewLaunching] = useState(false);
+  const effectiveLaunching = isLaunching || isPreviewLaunching;
+
+  useEffect(() => {
+    if (!isLaunching) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      onLaunchComplete();
+    }, 4800);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isLaunching, onLaunchComplete]);
+
+  useEffect(() => {
+    if (!isPreviewLaunching) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsPreviewLaunching(false);
+      setResetSignal((value) => value + 1);
+    }, 4800);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isPreviewLaunching]);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onLogin({ email: email.trim(), password });
   }
 
+  function handleReturnToLogin() {
+    setResetSignal((value) => value + 1);
+  }
+
+  function handlePreviewLaunch() {
+    setIsPreviewLaunching(true);
+  }
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,rgba(246,251,250,0.98),rgba(239,246,244,0.96))] text-foreground">
-      <div className="mx-auto grid min-h-screen max-w-[1480px] lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="relative overflow-hidden border-b border-[rgba(37,122,110,0.10)] px-6 py-10 sm:px-10 lg:border-b-0 lg:border-r lg:px-14 lg:py-14">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(84,176,160,0.16),transparent_38%),radial-gradient(circle_at_80%_20%,rgba(14,89,104,0.08),transparent_26%)]" />
-          <div className="relative flex h-full flex-col">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(37,122,110,0.98),rgba(68,167,152,0.92))] text-white shadow-[0_18px_32px_rgba(37,122,110,0.22)]">
-                <Wrench className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="font-studio text-2xl font-semibold tracking-[-0.04em] text-[hsl(var(--sea-ink))]">
-                  DevTool
-                </p>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  Internal sync control
-                </p>
-              </div>
-            </div>
+    <div className="relative min-h-screen overflow-hidden bg-[#030916] text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(90,132,255,0.24),transparent_24%),radial-gradient(circle_at_bottom,rgba(71,197,165,0.16),transparent_30%),linear-gradient(180deg,#050c19_0%,#020611_100%)]" />
 
-            <div className="mt-16 max-w-2xl">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">
-                Production workspace
-              </p>
-              <h1 className="mt-4 font-studio text-5xl font-semibold tracking-[-0.06em] text-[hsl(var(--sea-ink))] sm:text-6xl">
-                DevTool access for Outlook and Clockify operations.
-              </h1>
-              <p className="mt-6 max-w-xl text-lg leading-8 text-[hsl(var(--muted-foreground))]">
-                Credential-backed sync, review-first delivery, and one place to manage the internal time pipeline.
-              </p>
-            </div>
-
-            <div className="mt-12 grid gap-4 sm:grid-cols-3">
-              <LoginSignal
-                icon={ShieldCheck}
-                title="Secure entry"
-                detail="Internal-only sign in"
-              />
-              <LoginSignal
-                icon={KeyRound}
-                title="User mapping"
-                detail="Per-user credentials"
-              />
-              <LoginSignal
-                icon={ArrowRight}
-                title="Fast review"
-                detail="Push after approval"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="flex items-center justify-center px-6 py-10 sm:px-10 lg:px-14">
-          <div className="w-full max-w-md border border-[rgba(37,122,110,0.12)] bg-[rgba(255,255,255,0.94)] p-7 shadow-[0_28px_60px_rgba(34,88,82,0.10)] backdrop-blur-sm">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">
-                Sign in
-              </p>
-              <h2 className="mt-3 font-studio text-3xl font-semibold tracking-[-0.05em] text-[hsl(var(--sea-ink))]">
-                Open DevTool
-              </h2>
-            </div>
-
-            <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="login-email" className="text-[11px] uppercase tracking-[0.24em] text-primary">
-                  Email
-                </Label>
-                <Input
-                  id="login-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="h-12 rounded-none border-[rgba(37,122,110,0.14)] bg-white text-[15px] shadow-none"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="login-password" className="text-[11px] uppercase tracking-[0.24em] text-primary">
-                  Password
-                </Label>
-                <Input
-                  id="login-password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
-                  className="h-12 rounded-none border-[rgba(37,122,110,0.14)] bg-white text-[15px] shadow-none"
-                />
-              </div>
-
-              {error ? (
-                <div className="border border-[rgba(240,119,93,0.20)] bg-[rgba(240,119,93,0.08)] px-4 py-3 text-sm text-accent">
-                  {error}
-                </div>
-              ) : null}
-
-              <Button
-                type="submit"
-                disabled={isLoggingIn}
-                className="h-12 w-full rounded-full bg-[#111533] text-[15px] font-semibold text-white shadow-[0_14px_30px_rgba(17,21,51,0.18)] hover:bg-[#171c42]"
-              >
-                {isLoggingIn ? "Signing in" : "Enter workspace"}
-              </Button>
-            </form>
-          </div>
-        </section>
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-6 pt-5">
+        <button
+          type="button"
+          onClick={handleReturnToLogin}
+          disabled={effectiveLaunching}
+          className="pointer-events-auto h-10 rounded-full border border-[rgba(177,214,255,0.18)] bg-[rgba(8,16,31,0.72)] px-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#dbe9ff] shadow-[0_14px_32px_rgba(2,6,18,0.34)] backdrop-blur-xl transition-colors hover:bg-[rgba(13,24,45,0.9)]"
+        >
+          Login
+        </button>
       </div>
-    </div>
-  );
-}
 
-function LoginSignal({
-  icon: Icon,
-  title,
-  detail,
-}: {
-  icon: typeof ShieldCheck;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <div className="border border-[rgba(37,122,110,0.10)] bg-[rgba(255,255,255,0.72)] p-4 backdrop-blur-sm">
-      <Icon className="h-5 w-5 text-primary" />
-      <p className="mt-4 font-semibold text-[hsl(var(--sea-ink))]">{title}</p>
-      <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">{detail}</p>
+      <div className="absolute inset-0">
+        <Suspense fallback={null}>
+          <SpaceHeroCanvas
+            resetSignal={resetSignal}
+            launchSignal={effectiveLaunching}
+          >
+            <div className="overflow-hidden rounded-[1.4rem] border border-[rgba(177,214,255,0.22)] bg-[rgba(10,19,38,0.46)] shadow-[0_30px_90px_rgba(3,8,20,0.44)] backdrop-blur-2xl">
+              <div className="border-b border-[rgba(177,214,255,0.16)] px-5 py-5 text-center">
+                <p className="font-studio text-[2rem] font-semibold tracking-[-0.06em] text-[#f4f9ff]">
+                  Dev Tool
+                </p>
+              </div>
+
+              <div className="px-5 py-5">
+                <form className="space-y-4" onSubmit={handleSubmit}>
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="login-email"
+                      className="text-[11px] uppercase tracking-[0.24em] text-[#8dbdff]"
+                    >
+                      Email
+                    </Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      disabled={isLoggingIn || effectiveLaunching}
+                      className="h-11 rounded-[0.95rem] border-[rgba(177,214,255,0.18)] bg-[rgba(255,255,255,0.08)] px-4 text-[15px] text-[#eff6ff] shadow-none placeholder:text-[rgba(239,246,255,0.32)] focus:border-[#79bcff]"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="login-password"
+                      className="text-[11px] uppercase tracking-[0.24em] text-[#8dbdff]"
+                    >
+                      Password
+                    </Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      disabled={isLoggingIn || effectiveLaunching}
+                      placeholder="Enter your password"
+                      className="h-11 rounded-[0.95rem] border-[rgba(177,214,255,0.18)] bg-[rgba(255,255,255,0.08)] px-4 text-[15px] text-[#eff6ff] shadow-none placeholder:text-[rgba(239,246,255,0.32)] focus:border-[#79bcff]"
+                    />
+                  </div>
+
+                  {error ? (
+                    <div className="rounded-[0.95rem] border border-[rgba(255,131,131,0.24)] bg-[rgba(255,131,131,0.10)] px-4 py-3 text-sm text-[#ffb0b0]">
+                      {error}
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button
+                      type="submit"
+                      disabled={isLoggingIn || effectiveLaunching}
+                      className="h-11 w-full rounded-full bg-[#dfeeff] text-[15px] font-semibold text-[#081324] shadow-[0_16px_36px_rgba(157,204,255,0.2)] hover:bg-white"
+                    >
+                      {effectiveLaunching ? "Warping" : isLoggingIn ? "Signing in" : "Enter"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isLoggingIn || effectiveLaunching}
+                      onClick={handlePreviewLaunch}
+                      className="h-11 w-full rounded-full border-[rgba(177,214,255,0.22)] bg-[rgba(255,255,255,0.04)] text-[13px] font-semibold text-[#dce9ff] hover:bg-[rgba(255,255,255,0.08)]"
+                    >
+                      Preview Warp
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </SpaceHeroCanvas>
+        </Suspense>
+      </div>
     </div>
   );
 }

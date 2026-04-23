@@ -114,6 +114,41 @@ export type LoginResponse = {
   clockifyWorkspaceId?: string | null;
 };
 
+export type OutlookMappingRule = {
+  id: string;
+  userId?: string | null;
+  scope: "shared" | "user";
+  matchType: "exact_title" | "contains_title";
+  matchValue: string;
+  projectName: string;
+  taskName: string;
+  descriptionTemplate?: string | null;
+  isActive: boolean;
+  priority: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type MappingListResponse = {
+  action: "listMappings";
+  userId?: string;
+  email?: string;
+  count: number;
+  rules: OutlookMappingRule[];
+};
+
+export type MappingSaveResponse = {
+  action: "saveMapping";
+  saved: boolean;
+  rule: OutlookMappingRule;
+};
+
+export type MappingDeleteResponse = {
+  action: "deleteMapping";
+  deleted: boolean;
+  ruleId: string;
+};
+
 export async function postJson<TResponse, TBody>(
   url: string,
   body: TBody,

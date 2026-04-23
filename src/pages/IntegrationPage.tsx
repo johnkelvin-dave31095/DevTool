@@ -25,8 +25,12 @@ import {
   ApiError,
   CLOCKIFY_SYNC_URL,
   ClockifyListResponse,
+  ClockifyTask,
   ClockifyProject,
   ClockifySyncResponse,
+  INTEGRATION_SETUP_URL,
+  MappingListResponse,
+  OutlookMappingRule,
   OUTLOOK_EVENTS_URL,
   OutlookEvent,
   OutlookEventsResponse,
@@ -168,7 +172,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
     try {
       const range = buildDateRange(startDate, endDate);
 
-      const [outlookData, catalog] = await Promise.all([
+      const [outlookData, catalog, mappings] = await Promise.all([
         postJson<OutlookEventsResponse, typeof range & { email: string }>(
           OUTLOOK_EVENTS_URL,
           {
@@ -183,9 +187,20 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
             email: currentEmail,
           },
         ),
+        postJson<MappingListResponse, { action: "listMappings"; email: string }>(
+          INTEGRATION_SETUP_URL,
+          {
+            action: "listMappings",
+            email: currentEmail,
+          },
+        ),
       ]);
 
-      const nextRows = buildDraftRows(outlookData.events, catalog.projects);
+      const nextRows = buildDraftRows(
+        outlookData.events,
+        catalog.projects,
+        mappings.rules,
+      );
 
       setEvents(outlookData.events);
       setProjects(catalog.projects);
@@ -1150,17 +1165,21 @@ function addDays(value: string, days: number) {
 function buildDraftRows(
   events: OutlookEvent[],
   projects: ClockifyProject[],
+  mappingRules: OutlookMappingRule[],
 ): SyncDraftRow[] {
   const projectsByName = new Map(
     projects.map((project) => [normalizeName(project.projectName), project]),
   );
 
   return events.map((event) => {
-    const [projectName, taskName] = splitTitle(event.title);
+    const mappingRule = findFirstMatchingRule(event.title, mappingRules);
+    const fallbackTitleParts = splitTitle(event.title);
+    const projectName = mappingRule?.projectName ?? fallbackTitleParts[0];
+    const taskName = mappingRule?.taskName ?? fallbackTitleParts[1];
     const suggestedProject = projectsByName.get(normalizeName(projectName));
-    const suggestedTask = suggestedProject?.tasks.find(
-      (task) => normalizeName(task.taskName) === normalizeName(taskName),
-    );
+    const suggestedTask = findTaskByName(suggestedProject?.tasks ?? [], taskName);
+    const description =
+      cleanRuleDescription(mappingRule?.descriptionTemplate) ?? event.notes ?? "";
 
     return {
       id: getEventKey(event),
@@ -1171,7 +1190,7 @@ function buildDraftRows(
       hours: roundHours(
         event.hours > 0 ? event.hours : calculateHours(event.start, event.end),
       ),
-      description: event.notes ?? "",
+      description,
       include: true,
       projectId: suggestedProject?.projectId ?? "",
       taskId: suggestedTask?.taskId ?? "",
@@ -1287,6 +1306,52 @@ function splitTitle(title: string) {
 
 function normalizeName(value: string) {
   return value.trim().toLocaleLowerCase();
+}
+
+function findFirstMatchingRule(
+  title: string,
+  mappingRules: OutlookMappingRule[],
+) {
+  const normalizedTitle = normalizeName(title);
+
+  return (
+    mappingRules.find((rule) => {
+      if (!rule.isActive) {
+        return false;
+      }
+
+      const normalizedMatchValue = normalizeName(rule.matchValue);
+
+      if (!normalizedMatchValue) {
+        return false;
+      }
+
+      if (rule.matchType === "exact_title") {
+        return normalizedTitle === normalizedMatchValue;
+      }
+
+      if (rule.matchType === "contains_title") {
+        return normalizedTitle.includes(normalizedMatchValue);
+      }
+
+      return false;
+    }) ?? null
+  );
+}
+
+function findTaskByName(tasks: ClockifyTask[], taskName: string) {
+  const normalizedTaskName = normalizeName(taskName);
+
+  if (!normalizedTaskName) {
+    return undefined;
+  }
+
+  return tasks.find((task) => normalizeName(task.taskName) === normalizedTaskName);
+}
+
+function cleanRuleDescription(value?: string | null) {
+  const cleaned = value?.trim();
+  return cleaned ? cleaned : null;
 }
 
 function formatDateTime(value: string) {
