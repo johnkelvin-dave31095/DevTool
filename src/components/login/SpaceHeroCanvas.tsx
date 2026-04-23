@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Html } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -39,8 +39,36 @@ type AsteroidSpec = {
   spin: [number, number, number];
 };
 
-const BLACK_HOLE_POSITION = new THREE.Vector3(5, -1, -42);
+type PlanetInteractionState = {
+  clicks: number;
+  explodingAt: number | null;
+  burstId: number;
+};
+
+type SceneBlastState = {
+  triggeredAt: number | null;
+  burstId: number;
+};
+
+type BlackHoleInteractionState = {
+  clicks: number;
+  destroyedAt: number | null;
+  burstId: number;
+};
+
+type ExplosionFragmentSpec = {
+  direction: [number, number, number];
+  offset: [number, number, number];
+  scale: [number, number, number];
+  spin: [number, number, number];
+};
+
+const BLACK_HOLE_POSITION = new THREE.Vector3(40, 20, -90);
 const LOGIN_LAUNCH_DURATION_SECONDS = 4.8;
+const PLANET_CLICK_THRESHOLD = 6;
+const BLACK_HOLE_CLICK_THRESHOLD = 20;
+const PLANET_EXPLOSION_DURATION_MS = 1700;
+const SCENE_BLAST_DURATION_MS = 3600;
 
 const PLANETS: PlanetSpec[] = [
   {
@@ -250,6 +278,54 @@ function createStarPositions() {
   return positions;
 }
 
+function createExplosionFragments(
+  planetIndex: number,
+  burstId: number,
+  radius: number,
+) {
+  const count = 24 + planetIndex * 6;
+  const fragments: ExplosionFragmentSpec[] = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const seed = burstId * 101 + planetIndex * 31 + index * 17.13;
+    const theta = ((index + 0.5) / count) * Math.PI * 2 + seed * 0.03;
+    const phi = Math.acos(
+      THREE.MathUtils.clamp(
+        Math.sin(seed * 0.29) * 0.68 + Math.cos(seed * 0.11) * 0.18,
+        -1,
+        1,
+      ),
+    );
+    const direction = new THREE.Vector3(
+      Math.sin(phi) * Math.cos(theta),
+      Math.cos(phi),
+      Math.sin(phi) * Math.sin(theta),
+    ).normalize();
+    const spread = radius * (0.22 + (Math.sin(seed * 0.41) + 1) * 0.12);
+
+    fragments.push({
+      direction: [direction.x, direction.y, direction.z],
+      offset: [
+        direction.x * spread,
+        direction.y * spread,
+        direction.z * spread,
+      ],
+      scale: [
+        radius * (0.08 + (Math.sin(seed * 0.17) + 1) * 0.05),
+        radius * (0.06 + (Math.cos(seed * 0.13) + 1) * 0.04),
+        radius * (0.11 + (Math.sin(seed * 0.23 + 0.4) + 1) * 0.04),
+      ],
+      spin: [
+        0.8 + Math.sin(seed * 0.19) * 0.65,
+        0.9 + Math.cos(seed * 0.14) * 0.6,
+        0.7 + Math.sin(seed * 0.27) * 0.55,
+      ],
+    });
+  }
+
+  return fragments;
+}
+
 export function SpaceHeroCanvas({
   children,
   resetSignal = 0,
@@ -261,10 +337,123 @@ export function SpaceHeroCanvas({
 }) {
   const pointerRef = useRef<PointerState>({ active: false, x: 0, y: 0 });
   const scrollRef = useRef<ScrollState>({ current: 0, target: 0 });
+  const blastTimeoutRef = useRef<number | null>(null);
+  const [planetInteractions, setPlanetInteractions] = useState<
+    PlanetInteractionState[]
+  >(() =>
+    PLANETS.map(() => ({
+      clicks: 0,
+      explodingAt: null,
+      burstId: 0,
+    })),
+  );
+  const [sceneBlast, setSceneBlast] = useState<SceneBlastState>({
+    triggeredAt: null,
+    burstId: 0,
+  });
+  const [blackHoleInteraction, setBlackHoleInteraction] =
+    useState<BlackHoleInteractionState>({
+      clicks: 0,
+      destroyedAt: null,
+      burstId: 0,
+    });
 
   useEffect(() => {
     scrollRef.current.target = 0;
   }, [resetSignal]);
+
+  useEffect(() => {
+    return () => {
+      if (blastTimeoutRef.current !== null) {
+        window.clearTimeout(blastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function handlePlanetClick(planetIndex: number) {
+    if (launchSignal || sceneBlast.triggeredAt !== null) {
+      return;
+    }
+
+    setPlanetInteractions((current) => {
+      const next = [...current];
+      const planet = next[planetIndex];
+
+      if (!planet || planet.explodingAt !== null) {
+        return current;
+      }
+
+      const nextClicks = planet.clicks + 1;
+
+      if (nextClicks >= PLANET_CLICK_THRESHOLD) {
+        next[planetIndex] = {
+          clicks: PLANET_CLICK_THRESHOLD,
+          explodingAt: performance.now(),
+          burstId: planet.burstId + 1,
+        };
+      } else {
+        next[planetIndex] = {
+          ...planet,
+          clicks: nextClicks,
+        };
+      }
+
+      return next;
+    });
+  }
+
+  function handleBlackHoleClick() {
+    if (
+      launchSignal ||
+      sceneBlast.triggeredAt !== null ||
+      blackHoleInteraction.destroyedAt !== null
+    ) {
+      return;
+    }
+
+    setBlackHoleInteraction((current) => {
+      const nextClicks = current.clicks + 1;
+
+      if (nextClicks < BLACK_HOLE_CLICK_THRESHOLD) {
+        return {
+          ...current,
+          clicks: nextClicks,
+        };
+      }
+
+      const triggeredAt = performance.now();
+      const nextBurstId = current.burstId + 1;
+      setPlanetInteractions((planets) =>
+        planets.map((planet) => ({
+          clicks: PLANET_CLICK_THRESHOLD,
+          explodingAt: triggeredAt,
+          burstId: planet.burstId + 1,
+        })),
+      );
+      setSceneBlast({
+        triggeredAt,
+        burstId: nextBurstId,
+      });
+
+      if (blastTimeoutRef.current !== null) {
+        window.clearTimeout(blastTimeoutRef.current);
+      }
+
+      blastTimeoutRef.current = window.setTimeout(() => {
+        setSceneBlast((latest) => ({
+          ...latest,
+          triggeredAt: null,
+        }));
+        blastTimeoutRef.current = null;
+      }, SCENE_BLAST_DURATION_MS);
+
+      return {
+        clicks: BLACK_HOLE_CLICK_THRESHOLD,
+        destroyedAt: triggeredAt,
+        burstId: nextBurstId,
+      };
+    });
+  }
 
   function handlePointerMove(event: React.MouseEvent<HTMLDivElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -357,6 +546,11 @@ export function SpaceHeroCanvas({
           pointerRef={pointerRef}
           scrollRef={scrollRef}
           launchSignal={launchSignal}
+          planetInteractions={planetInteractions}
+          onPlanetClick={handlePlanetClick}
+          sceneBlast={sceneBlast}
+          blackHoleInteraction={blackHoleInteraction}
+          onBlackHoleClick={handleBlackHoleClick}
         >
           {children}
         </SceneRoot>
@@ -370,11 +564,21 @@ function SceneRoot({
   scrollRef,
   children,
   launchSignal,
+  planetInteractions,
+  onPlanetClick,
+  sceneBlast,
+  blackHoleInteraction,
+  onBlackHoleClick,
 }: {
   pointerRef: React.MutableRefObject<PointerState>;
   scrollRef: React.MutableRefObject<ScrollState>;
   children?: ReactNode;
   launchSignal: boolean;
+  planetInteractions: PlanetInteractionState[];
+  onPlanetClick: (planetIndex: number) => void;
+  sceneBlast: SceneBlastState;
+  blackHoleInteraction: BlackHoleInteractionState;
+  onBlackHoleClick: () => void;
 }) {
   const { camera } = useThree();
   const cameraCurve = useMemo(
@@ -422,6 +626,15 @@ function SceneRoot({
 
   useFrame((_, delta) => {
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
+    const sceneBlastProgress =
+      sceneBlast.triggeredAt === null
+        ? 0
+        : THREE.MathUtils.clamp(
+            (performance.now() - sceneBlast.triggeredAt) /
+              SCENE_BLAST_DURATION_MS,
+            0,
+            1,
+          );
 
     if (launchStateRef.current.active) {
       if (!launchStateRef.current.initialized) {
@@ -535,18 +748,52 @@ function SceneRoot({
       .addScaledVector(sideVector.current, sideDrift)
       .addScaledVector(liftVector.current, liftDrift);
 
+    if (sceneBlastProgress > 0) {
+      const blastVector = baseCameraPoint
+        .clone()
+        .sub(BLACK_HOLE_POSITION)
+        .normalize();
+      const blastPush = THREE.MathUtils.smootherstep(sceneBlastProgress, 0, 0.78);
+      const shakeFalloff = 1 - THREE.MathUtils.smootherstep(sceneBlastProgress, 0.16, 1);
+      const shakeStrength = 1.55 * shakeFalloff;
+      const elapsed = performance.now() * 0.001;
+      const shakeX =
+        Math.sin(elapsed * 30) * shakeStrength +
+        Math.cos(elapsed * 23) * shakeStrength * 0.45;
+      const shakeY =
+        Math.cos(elapsed * 27) * shakeStrength * 0.8 +
+        Math.sin(elapsed * 18) * shakeStrength * 0.38;
+      const shakeZ = Math.sin(elapsed * 34) * shakeStrength * 0.34;
+
+      cameraTarget.current
+        .addScaledVector(blastVector, blastPush * 28)
+        .addScaledVector(sideVector.current, shakeX)
+        .addScaledVector(liftVector.current, shakeY)
+        .addScaledVector(tangent.current, shakeZ);
+
+      lookTarget.current
+        .copy(baseLookPoint)
+        .addScaledVector(blastVector, -blastPush * 4.2)
+        .addScaledVector(sideVector.current, shakeX * 0.22)
+        .addScaledVector(liftVector.current, shakeY * 0.18);
+    } else {
+      lookTarget.current.lerp(baseLookPoint, 1 - Math.exp(-delta * 3.1));
+    }
+
     perspectiveCamera.position.lerp(
       cameraTarget.current,
-      1 - Math.exp(-delta * 2.8),
+      1 - Math.exp(-delta * (sceneBlastProgress > 0 ? 4.2 : 2.8)),
     );
-    lookTarget.current.lerp(baseLookPoint, 1 - Math.exp(-delta * 3.1));
     perspectiveCamera.lookAt(lookTarget.current);
 
-    const targetFov = sampleScalarStops(CAMERA_FOV_STOPS, progress);
+    const targetFov =
+      sampleScalarStops(CAMERA_FOV_STOPS, progress) +
+      THREE.MathUtils.smootherstep(sceneBlastProgress, 0, 0.4) * 22 -
+      THREE.MathUtils.smootherstep(sceneBlastProgress, 0.58, 1) * 8;
     perspectiveCamera.fov = THREE.MathUtils.lerp(
       perspectiveCamera.fov,
       targetFov,
-      1 - Math.exp(-delta * 2.1),
+      1 - Math.exp(-delta * (sceneBlastProgress > 0 ? 4.6 : 2.1)),
     );
     perspectiveCamera.updateProjectionMatrix();
 
@@ -566,13 +813,21 @@ function SceneRoot({
 
   return (
     <>
-      <SpaceBackdrop />
-      <BlackHoleCore />
+      <SceneBlastLight sceneBlast={sceneBlast} />
+      <SpaceBackdrop sceneBlast={sceneBlast} />
+      <BlackHoleCore
+        sceneBlast={sceneBlast}
+        blackHoleInteraction={blackHoleInteraction}
+        onBlackHoleClick={onBlackHoleClick}
+      />
       {PLANETS.map((planet, index) => (
         <PlanetCluster
           key={`planet-${planet.center[0]}-${planet.center[1]}`}
           planet={planet}
           index={index}
+          interaction={planetInteractions[index]}
+          onPlanetClick={() => onPlanetClick(index)}
+          sceneBlast={sceneBlast}
         />
       ))}
       {children ? <LoginAnchor>{children}</LoginAnchor> : null}
@@ -580,8 +835,45 @@ function SceneRoot({
         pointerRef={pointerRef}
         lookCurve={lookCurve}
         scrollRef={scrollRef}
+        sceneBlast={sceneBlast}
       />
     </>
+  );
+}
+
+function SceneBlastLight({ sceneBlast }: { sceneBlast: SceneBlastState }) {
+  const lightRef = useRef<THREE.PointLight | null>(null);
+
+  useFrame(() => {
+    if (!lightRef.current) {
+      return;
+    }
+
+    const blastProgress =
+      sceneBlast.triggeredAt === null
+        ? 0
+        : THREE.MathUtils.clamp(
+            (performance.now() - sceneBlast.triggeredAt) /
+              SCENE_BLAST_DURATION_MS,
+            0,
+            1,
+          );
+    const flash =
+      THREE.MathUtils.smootherstep(blastProgress, 0, 0.08) *
+      (1 - THREE.MathUtils.smootherstep(blastProgress, 0.16, 1));
+
+    lightRef.current.intensity = flash * 260;
+    lightRef.current.distance = 90 + blastProgress * 70;
+  });
+
+  return (
+    <pointLight
+      ref={lightRef}
+      position={BLACK_HOLE_POSITION.toArray()}
+      intensity={0}
+      distance={90}
+      color="#eef5ff"
+    />
   );
 }
 
@@ -604,12 +896,31 @@ function LoginAnchor({ children }: { children: ReactNode }) {
   );
 }
 
-function BlackHoleCore() {
+function BlackHoleCore({
+  sceneBlast,
+  blackHoleInteraction,
+  onBlackHoleClick,
+}: {
+  sceneBlast: SceneBlastState;
+  blackHoleInteraction: BlackHoleInteractionState;
+  onBlackHoleClick: () => void;
+}) {
   const groupRef = useRef<THREE.Group | null>(null);
   const holePosition = useMemo(() => BLACK_HOLE_POSITION.clone(), []);
   const diskRef = useRef<THREE.Mesh | null>(null);
   const diskBackRef = useRef<THREE.Mesh | null>(null);
   const lensShellRef = useRef<THREE.Mesh | null>(null);
+  const shockwaveRef = useRef<THREE.Mesh | null>(null);
+  const shockwaveMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const haloMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const outerPulseRef = useRef<THREE.Mesh | null>(null);
+  const outerPulseMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const whiteOutlineRef = useRef<THREE.Mesh | null>(null);
+  const whiteOutlineMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const purpleOutlineRef = useRef<THREE.Mesh | null>(null);
+  const purpleOutlineMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const coreMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const innerVoidMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const lensMaterial = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -649,23 +960,135 @@ function BlackHoleCore() {
       return;
     }
 
+    const clickProgress =
+      blackHoleInteraction.clicks / BLACK_HOLE_CLICK_THRESHOLD;
+    const blastProgress =
+      sceneBlast.triggeredAt === null
+        ? 0
+        : THREE.MathUtils.clamp(
+            (performance.now() - sceneBlast.triggeredAt) /
+              SCENE_BLAST_DURATION_MS,
+            0,
+            1,
+          );
+    const destroyedProgress =
+      blackHoleInteraction.destroyedAt === null
+        ? 0
+        : THREE.MathUtils.clamp(
+            (performance.now() - blackHoleInteraction.destroyedAt) /
+              SCENE_BLAST_DURATION_MS,
+            0,
+            1,
+          );
+    const collapseProgress =
+      blackHoleInteraction.destroyedAt === null
+        ? 0
+        : THREE.MathUtils.smootherstep(destroyedProgress, 0.08, 0.7);
+    const chargePulse =
+      clickProgress > 0
+        ? Math.sin(state.clock.elapsedTime * (2.4 + clickProgress * 5.2)) * 0.5 +
+          0.5
+        : 0;
+
     groupRef.current.position.lerp(holePosition, 1 - Math.exp(-delta * 2.5));
     groupRef.current.rotation.z += delta * 0.02;
+    groupRef.current.scale.setScalar(
+      (1 + clickProgress * 0.1 + chargePulse * clickProgress * 0.06) *
+        THREE.MathUtils.lerp(
+          1 + THREE.MathUtils.smootherstep(blastProgress, 0, 0.8) * 0.52,
+          0.06,
+          collapseProgress,
+        ),
+    );
 
     lensMaterial.uniforms.uTime.value = state.clock.elapsedTime;
     diskMaterial.uniforms.uTime.value = state.clock.elapsedTime;
 
     if (diskRef.current) {
-      diskRef.current.rotation.z += delta * 0.14;
+      diskRef.current.rotation.z += delta * (0.14 + blastProgress * 1.8);
     }
 
     if (diskBackRef.current) {
-      diskBackRef.current.rotation.z -= delta * 0.08;
+      diskBackRef.current.rotation.z -= delta * (0.08 + blastProgress * 1.2);
     }
 
     if (lensShellRef.current) {
-      lensShellRef.current.rotation.y += delta * 0.05;
-      lensShellRef.current.rotation.z -= delta * 0.04;
+      lensShellRef.current.rotation.y += delta * (0.05 + blastProgress * 0.3);
+      lensShellRef.current.rotation.z -= delta * (0.04 + blastProgress * 0.22);
+    }
+
+    if (shockwaveRef.current) {
+      const shockwaveScale =
+        sceneBlast.triggeredAt === null
+          ? 0.001
+          : THREE.MathUtils.lerp(
+              0.001,
+              34,
+              THREE.MathUtils.smootherstep(blastProgress, 0, 1),
+            );
+      shockwaveRef.current.scale.setScalar(shockwaveScale);
+    }
+
+    if (shockwaveMaterialRef.current) {
+      shockwaveMaterialRef.current.opacity =
+        sceneBlast.triggeredAt === null
+          ? 0
+          : (1 - THREE.MathUtils.smootherstep(blastProgress, 0, 1)) * 0.22;
+    }
+
+    if (haloMaterialRef.current) {
+      haloMaterialRef.current.opacity =
+        (0.025 + clickProgress * 0.08 + blastProgress * 0.2) *
+        (1 - collapseProgress * 0.9);
+    }
+
+    if (outerPulseRef.current) {
+      outerPulseRef.current.scale.setScalar(
+        2.8 +
+          clickProgress * 0.6 +
+          chargePulse * clickProgress * 0.2 +
+          THREE.MathUtils.smootherstep(blastProgress, 0, 1) * 8.6,
+      );
+    }
+
+    if (outerPulseMaterialRef.current) {
+      outerPulseMaterialRef.current.opacity =
+        sceneBlast.triggeredAt === null
+          ? clickProgress * (0.04 + chargePulse * 0.05)
+          : (1 - THREE.MathUtils.smootherstep(blastProgress, 0.18, 1)) * 0.18;
+      outerPulseMaterialRef.current.opacity *= 1 - collapseProgress;
+    }
+
+    if (whiteOutlineRef.current) {
+      whiteOutlineRef.current.scale.setScalar(
+        1.18 + clickProgress * 0.16 + chargePulse * clickProgress * 0.08,
+      );
+    }
+
+    if (purpleOutlineRef.current) {
+      purpleOutlineRef.current.scale.setScalar(
+        1.42 + clickProgress * 0.22 + chargePulse * clickProgress * 0.12,
+      );
+    }
+
+    if (whiteOutlineMaterialRef.current) {
+      whiteOutlineMaterialRef.current.opacity =
+        (0.16 + clickProgress * 0.28 + chargePulse * clickProgress * 0.16) *
+        (1 - collapseProgress);
+    }
+
+    if (purpleOutlineMaterialRef.current) {
+      purpleOutlineMaterialRef.current.opacity =
+        (0.18 + clickProgress * 0.34 + chargePulse * clickProgress * 0.18) *
+        (1 - collapseProgress);
+    }
+
+    if (coreMaterialRef.current) {
+      coreMaterialRef.current.opacity = 0.92 * (1 - collapseProgress * 0.95);
+    }
+
+    if (innerVoidMaterialRef.current) {
+      innerVoidMaterialRef.current.opacity = 0.96 * (1 - collapseProgress);
     }
   });
 
@@ -681,7 +1104,12 @@ function BlackHoleCore() {
 
       <mesh scale={[1.04, 1.04, 1.04]}>
         <sphereGeometry args={[3.18, 48, 48]} />
-        <meshBasicMaterial color="#05060e" transparent opacity={0.92} />
+        <meshBasicMaterial
+          ref={coreMaterialRef}
+          color="#05060e"
+          transparent
+          opacity={0.92}
+        />
       </mesh>
 
       <mesh>
@@ -691,7 +1119,12 @@ function BlackHoleCore() {
 
       <mesh scale={[0.82, 0.82, 0.82]}>
         <sphereGeometry args={[2.9, 40, 40]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.96} />
+        <meshBasicMaterial
+          ref={innerVoidMaterialRef}
+          color="#000000"
+          transparent
+          opacity={0.96}
+        />
       </mesh>
 
       <mesh
@@ -713,6 +1146,7 @@ function BlackHoleCore() {
       <mesh scale={[2.1, 2.1, 2.1]}>
         <sphereGeometry args={[2.9, 28, 28]} />
         <meshBasicMaterial
+          ref={haloMaterialRef}
           color="#4961b4"
           transparent
           opacity={0.025}
@@ -720,19 +1154,104 @@ function BlackHoleCore() {
           side={THREE.BackSide}
         />
       </mesh>
+
+      <mesh ref={whiteOutlineRef} scale={[1.18, 1.18, 1.18]}>
+        <sphereGeometry args={[3.18, 40, 40]} />
+        <meshBasicMaterial
+          ref={whiteOutlineMaterialRef}
+          color="#ffffff"
+          transparent
+          opacity={0.16}
+          blending={THREE.AdditiveBlending}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      <mesh ref={purpleOutlineRef} scale={[1.42, 1.42, 1.42]}>
+        <sphereGeometry args={[3.18, 40, 40]} />
+        <meshBasicMaterial
+          ref={purpleOutlineMaterialRef}
+          color="#a855f7"
+          transparent
+          opacity={0.18}
+          blending={THREE.AdditiveBlending}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      <mesh ref={outerPulseRef}>
+        <sphereGeometry args={[3.3, 24, 24]} />
+        <meshBasicMaterial
+          ref={outerPulseMaterialRef}
+          color="#dbe7ff"
+          transparent
+          opacity={0}
+          blending={THREE.AdditiveBlending}
+          side={THREE.BackSide}
+        />
+      </mesh>
+
+      <mesh ref={shockwaveRef}>
+        <sphereGeometry args={[3.4, 28, 28]} />
+        <meshBasicMaterial
+          ref={shockwaveMaterialRef}
+          color="#8eb5ff"
+          transparent
+          opacity={0}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+
+      <mesh onClick={onBlackHoleClick}>
+        <sphereGeometry args={[7.8, 24, 24]} />
+        <meshBasicMaterial transparent opacity={0.001} depthWrite={false} />
+      </mesh>
     </group>
   );
 }
 
-function SpaceBackdrop() {
+function SpaceBackdrop({ sceneBlast }: { sceneBlast: SceneBlastState }) {
   const starPositions = useMemo(() => createStarPositions(), []);
   const starFieldRef = useRef<THREE.Points | null>(null);
+  const starsMaterialRef = useRef<THREE.PointsMaterial | null>(null);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
+    const blastProgress =
+      sceneBlast.triggeredAt === null
+        ? 0
+        : THREE.MathUtils.clamp(
+            (performance.now() - sceneBlast.triggeredAt) /
+              SCENE_BLAST_DURATION_MS,
+            0,
+            1,
+          );
+
     if (starFieldRef.current) {
       starFieldRef.current.rotation.y = state.clock.elapsedTime * 0.005;
       starFieldRef.current.rotation.x =
         Math.sin(state.clock.elapsedTime * 0.03) * 0.02;
+      starFieldRef.current.position.z = THREE.MathUtils.lerp(
+        starFieldRef.current.position.z,
+        blastProgress * 64,
+        1 - Math.exp(-delta * 4.1),
+      );
+      starFieldRef.current.scale.set(
+        1 + blastProgress * 3.1,
+        1 + blastProgress * 0.5,
+        1 + blastProgress * 6.4,
+      );
+    }
+
+    if (starsMaterialRef.current) {
+      starsMaterialRef.current.size = 0.16 + blastProgress * 0.6;
+      starsMaterialRef.current.opacity = 0.88 - blastProgress * 0.7;
+      starsMaterialRef.current.color.set(
+        new THREE.Color().lerpColors(
+          new THREE.Color("#dcecff"),
+          new THREE.Color("#f6fbff"),
+          THREE.MathUtils.smootherstep(blastProgress, 0, 0.45),
+        ),
+      );
     }
   });
 
@@ -748,6 +1267,7 @@ function SpaceBackdrop() {
           />
         </bufferGeometry>
         <pointsMaterial
+          ref={starsMaterialRef}
           color="#dcecff"
           size={0.16}
           sizeAttenuation
@@ -762,27 +1282,143 @@ function SpaceBackdrop() {
 function PlanetCluster({
   planet,
   index,
+  interaction,
+  onPlanetClick,
+  sceneBlast,
 }: {
   planet: PlanetSpec;
   index: number;
+  interaction: PlanetInteractionState;
+  onPlanetClick: () => void;
+  sceneBlast: SceneBlastState;
 }) {
   const groupRef = useRef<THREE.Group | null>(null);
+  const bodyGroupRef = useRef<THREE.Group | null>(null);
   const ringRef = useRef<THREE.Mesh | null>(null);
+  const atmosphereRef = useRef<THREE.Mesh | null>(null);
+  const highlightRef = useRef<THREE.Mesh | null>(null);
+  const planetMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
+  const atmosphereMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const highlightMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const ringMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const fragmentGroupRef = useRef<THREE.Group | null>(null);
+  const fragmentRefs = useRef<Array<THREE.Mesh | null>>([]);
   const planetVector = useMemo(
     () =>
       new THREE.Vector3(planet.center[0], planet.center[1], planet.center[2]),
     [planet.center],
   );
+  const fragments = useMemo(
+    () => createExplosionFragments(index, interaction.burstId, planet.radius),
+    [index, interaction.burstId, planet.radius],
+  );
+  const blastDirection = useMemo(
+    () => planetVector.clone().sub(BLACK_HOLE_POSITION).normalize(),
+    [planetVector],
+  );
 
   useFrame((state, delta) => {
+    const clickProgress = interaction.clicks / PLANET_CLICK_THRESHOLD;
+    const pulse =
+      clickProgress > 0
+        ? Math.sin(
+            state.clock.elapsedTime * (1.8 + clickProgress * 3.1) + index,
+          ) *
+            0.5 +
+          0.5
+        : 0;
+    const buildIntensity = clickProgress * (0.58 + pulse * 0.42);
+    const sceneBlastProgress =
+      sceneBlast.triggeredAt === null
+        ? 0
+        : THREE.MathUtils.clamp(
+            (performance.now() - sceneBlast.triggeredAt) /
+              SCENE_BLAST_DURATION_MS,
+            0,
+            1,
+          );
+    const explosionProgress =
+      interaction.explodingAt === null && sceneBlast.triggeredAt === null
+        ? 0
+        : THREE.MathUtils.clamp(
+            (performance.now() -
+              (sceneBlast.triggeredAt ??
+                interaction.explodingAt ??
+                performance.now())) /
+              (sceneBlast.triggeredAt === null
+                ? PLANET_EXPLOSION_DURATION_MS
+                : SCENE_BLAST_DURATION_MS),
+            0,
+            1,
+          );
+    const planetVisibility =
+      interaction.explodingAt === null && sceneBlast.triggeredAt === null
+        ? 1
+        : 1 - explosionProgress;
+    const planetScale =
+      interaction.explodingAt === null && sceneBlast.triggeredAt === null
+        ? 1 + buildIntensity * 0.04
+        : THREE.MathUtils.lerp(
+            1.06,
+            0.22,
+            THREE.MathUtils.smootherstep(explosionProgress, 0, 1),
+          );
+
     if (groupRef.current) {
-      groupRef.current.position.lerp(planetVector, 1 - Math.exp(-delta * 3));
+      const targetPlanetPosition = planetVector
+        .clone()
+        .addScaledVector(
+          blastDirection,
+          sceneBlastProgress * (24 + index * 6),
+        );
+      groupRef.current.position.lerp(
+        targetPlanetPosition,
+        1 - Math.exp(-delta * 3),
+      );
       groupRef.current.rotation.y += delta * (0.12 + index * 0.02);
       groupRef.current.rotation.x = THREE.MathUtils.lerp(
         groupRef.current.rotation.x,
         Math.sin(state.clock.elapsedTime * 0.08 + index) * 0.06,
         1 - Math.exp(-delta * 2.2),
       );
+      groupRef.current.rotation.z = THREE.MathUtils.lerp(
+        groupRef.current.rotation.z,
+        sceneBlastProgress * (2.2 + index * 0.55),
+        1 - Math.exp(-delta * 3.6),
+      );
+    }
+
+    if (planetMaterialRef.current) {
+      planetMaterialRef.current.emissiveIntensity =
+        0.24 + clickProgress * 0.95 + pulse * clickProgress * 0.48;
+      planetMaterialRef.current.opacity = planetVisibility;
+    }
+
+    if (atmosphereRef.current) {
+      const atmosphereScale =
+        1.18 + clickProgress * 0.08 + explosionProgress * 0.14;
+      atmosphereRef.current.scale.setScalar(atmosphereScale);
+    }
+
+    if (atmosphereMaterialRef.current) {
+      atmosphereMaterialRef.current.opacity =
+        0.14 + clickProgress * 0.18 + pulse * clickProgress * 0.08;
+      atmosphereMaterialRef.current.opacity *=
+        interaction.explodingAt === null && sceneBlast.triggeredAt === null
+          ? 1
+          : 1 - explosionProgress * 0.24;
+    }
+
+    if (highlightRef.current) {
+      const highlightScale =
+        1 + clickProgress * 0.35 + explosionProgress * 0.48;
+      highlightRef.current.scale.setScalar(highlightScale);
+    }
+
+    if (highlightMaterialRef.current) {
+      highlightMaterialRef.current.opacity =
+        (0.22 + clickProgress * 0.34 + pulse * clickProgress * 0.16) *
+        planetVisibility;
     }
 
     if (ringRef.current && planet.ringTilt) {
@@ -790,54 +1426,144 @@ function PlanetCluster({
       ringRef.current.rotation.y =
         planet.ringTilt[1] + state.clock.elapsedTime * 0.05;
       ringRef.current.rotation.z = planet.ringTilt[2];
+      ringRef.current.scale.setScalar(
+        1 + clickProgress * 0.03 + explosionProgress * 0.06,
+      );
+    }
+
+    if (ringMaterialRef.current) {
+      ringMaterialRef.current.opacity =
+        (0.22 + clickProgress * 0.12) *
+        (interaction.explodingAt === null && sceneBlast.triggeredAt === null
+          ? 1
+          : 1 - explosionProgress * 0.5);
+    }
+
+    if (fragmentGroupRef.current) {
+      fragmentGroupRef.current.visible =
+        interaction.explodingAt !== null || sceneBlast.triggeredAt !== null;
+    }
+
+    fragmentRefs.current.forEach((fragment, fragmentIndex) => {
+      if (!fragment) {
+        return;
+      }
+
+      if (interaction.explodingAt === null && sceneBlast.triggeredAt === null) {
+        fragment.visible = false;
+        return;
+      }
+
+      const fragmentSpec = fragments[fragmentIndex];
+      const explodeEase = THREE.MathUtils.smootherstep(explosionProgress, 0, 1);
+      const blastTravelBoost =
+        sceneBlast.triggeredAt === null
+          ? 0
+          : sceneBlastProgress * (18 + index * 3.2);
+      const travel =
+        planet.radius *
+        (0.3 + explodeEase * (3.4 + fragmentIndex * 0.015) + blastTravelBoost);
+      fragment.visible = true;
+      fragment.position.set(
+        fragmentSpec.offset[0] + fragmentSpec.direction[0] * travel,
+        fragmentSpec.offset[1] + fragmentSpec.direction[1] * travel,
+        fragmentSpec.offset[2] + fragmentSpec.direction[2] * travel,
+      );
+      fragment.rotation.x += delta * fragmentSpec.spin[0];
+      fragment.rotation.y += delta * fragmentSpec.spin[1];
+      fragment.rotation.z += delta * fragmentSpec.spin[2];
+      fragment.scale.set(
+        fragmentSpec.scale[0] * (1 - explodeEase * 0.7),
+        fragmentSpec.scale[1] * (1 - explodeEase * 0.7),
+        fragmentSpec.scale[2] * (1 - explodeEase * 0.7),
+      );
+    });
+
+    if (bodyGroupRef.current) {
+      bodyGroupRef.current.scale.setScalar(planetScale);
     }
   });
 
   return (
     <group ref={groupRef}>
-      <mesh>
-        <sphereGeometry args={[planet.radius, 48, 48]} />
-        <meshStandardMaterial
-          color={planet.color}
-          roughness={0.85}
-          metalness={0.04}
-          emissive={planet.glowColor}
-          emissiveIntensity={0.24}
-        />
-      </mesh>
-
-      <mesh scale={[1.18, 1.18, 1.18]}>
-        <sphereGeometry args={[planet.radius, 40, 40]} />
-        <meshBasicMaterial
-          color={planet.atmosphereColor}
-          transparent
-          opacity={0.14}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
-
-      <mesh
-        position={[
-          planet.radius * 0.28,
-          planet.radius * 0.12,
-          planet.radius * 0.86,
-        ]}
-      >
-        <sphereGeometry args={[planet.radius * 0.14, 24, 24]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.22} />
-      </mesh>
-
-      {planet.ringColor ? (
-        <mesh ref={ringRef}>
-          <torusGeometry args={[planet.radius + 1.5, 0.12, 20, 120]} />
-          <meshBasicMaterial
-            color={planet.ringColor}
+      <group ref={bodyGroupRef}>
+        <mesh onClick={onPlanetClick}>
+          <sphereGeometry args={[planet.radius, 48, 48]} />
+          <meshStandardMaterial
+            ref={planetMaterialRef}
+            color={planet.color}
+            roughness={0.85}
+            metalness={0.04}
+            emissive={planet.glowColor}
+            emissiveIntensity={0.24}
             transparent
-            opacity={0.22}
+          />
+        </mesh>
+
+        <mesh ref={atmosphereRef}>
+          <sphereGeometry args={[planet.radius, 40, 40]} />
+          <meshBasicMaterial
+            ref={atmosphereMaterialRef}
+            color={planet.atmosphereColor}
+            transparent
+            opacity={0.14}
             blending={THREE.AdditiveBlending}
           />
         </mesh>
-      ) : null}
+
+        <mesh
+          ref={highlightRef}
+          position={[
+            planet.radius * 0.28,
+            planet.radius * 0.12,
+            planet.radius * 0.86,
+          ]}
+        >
+          <sphereGeometry args={[planet.radius * 0.14, 24, 24]} />
+          <meshBasicMaterial
+            ref={highlightMaterialRef}
+            color="#ffffff"
+            transparent
+            opacity={0.22}
+          />
+        </mesh>
+
+        {planet.ringColor ? (
+          <mesh ref={ringRef}>
+            <torusGeometry args={[planet.radius + 1.5, 0.12, 20, 120]} />
+            <meshBasicMaterial
+              ref={ringMaterialRef}
+              color={planet.ringColor}
+              transparent
+              opacity={0.22}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+        ) : null}
+      </group>
+
+      <group ref={fragmentGroupRef} visible={false}>
+        {fragments.map((fragment, fragmentIndex) => (
+          <mesh
+            key={`fragment-${index}-${interaction.burstId}-${fragmentIndex}`}
+            ref={(node) => {
+              fragmentRefs.current[fragmentIndex] = node;
+            }}
+            visible={false}
+          >
+            <icosahedronGeometry args={[1, 0]} />
+            <meshStandardMaterial
+              color={planet.color}
+              emissive={planet.glowColor}
+              emissiveIntensity={0.52}
+              roughness={0.56}
+              metalness={0.08}
+              transparent
+              opacity={0.95}
+            />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -846,10 +1572,12 @@ function AsteroidField({
   pointerRef,
   lookCurve,
   scrollRef,
+  sceneBlast,
 }: {
   pointerRef: React.MutableRefObject<PointerState>;
   lookCurve: THREE.CatmullRomCurve3;
   scrollRef: React.MutableRefObject<ScrollState>;
+  sceneBlast: SceneBlastState;
 }) {
   const asteroidRefs = useRef<Array<THREE.Mesh | null>>([]);
   const avoidanceMemoryRef = useRef<number[]>([]);
@@ -862,6 +1590,8 @@ function AsteroidField({
         color: "#8b97aa",
         roughness: 0.95,
         metalness: 0.02,
+        transparent: true,
+        opacity: 0.96,
       }),
     [],
   );
@@ -869,6 +1599,16 @@ function AsteroidField({
   const { viewport } = useThree();
 
   useFrame((state, delta) => {
+    const blastProgress =
+      sceneBlast.triggeredAt === null
+        ? 0
+        : THREE.MathUtils.clamp(
+            (performance.now() - sceneBlast.triggeredAt) /
+              SCENE_BLAST_DURATION_MS,
+            0,
+            1,
+          );
+
     focusPoint.current.copy(
       lookCurve.getPointAt(wrapProgress(scrollRef.current.current)),
     );
@@ -897,6 +1637,9 @@ function AsteroidField({
         planet.center[1],
         planet.center[2],
       );
+      const blastDirection = new THREE.Vector3()
+        .subVectors(clusterCenter, BLACK_HOLE_POSITION)
+        .normalize();
       const orbitAngle = elapsed * asteroid.speed + asteroid.phase;
 
       const baseX =
@@ -938,33 +1681,45 @@ function AsteroidField({
       const escapeDistance = asteroid.repulsion * (0.42 + avoidance * 1.46);
       const pushX = distance > 0 ? (dx / distance) * escapeDistance : 0;
       const pushY = distance > 0 ? (dy / distance) * escapeDistance : 0;
+      const blastOffsetScale =
+        blastProgress * (18 + asteroid.clusterIndex * 4.6);
 
       targetPosition.current.set(
-        baseX + pushX,
-        baseY + pushY,
-        baseZ + avoidance * 0.22,
+        baseX + pushX + blastDirection.x * blastOffsetScale,
+        baseY + pushY + blastDirection.y * blastOffsetScale,
+        baseZ +
+          avoidance * 0.22 +
+          blastDirection.z * blastOffsetScale +
+          blastProgress * 4.4,
       );
       mesh.position.lerp(targetPosition.current, 1 - Math.exp(-delta * 6.4));
-      mesh.rotation.x += delta * asteroid.spin[0] * 0.4;
-      mesh.rotation.y += delta * asteroid.spin[1] * 0.42;
-      mesh.rotation.z += delta * asteroid.spin[2] * 0.36;
+      mesh.rotation.x +=
+        delta * asteroid.spin[0] * (0.4 + blastProgress * 5.4);
+      mesh.rotation.y +=
+        delta * asteroid.spin[1] * (0.42 + blastProgress * 5.9);
+      mesh.rotation.z +=
+        delta * asteroid.spin[2] * (0.36 + blastProgress * 5.1);
 
       mesh.scale.x = THREE.MathUtils.lerp(
         mesh.scale.x,
-        asteroid.scale[0] * (1 + avoidance * 0.05),
+        asteroid.scale[0] * (1 + avoidance * 0.05 + blastProgress * 0.48),
         1 - Math.exp(-delta * 5),
       );
       mesh.scale.y = THREE.MathUtils.lerp(
         mesh.scale.y,
-        asteroid.scale[1] * (1 + avoidance * 0.05),
+        asteroid.scale[1] * (1 + avoidance * 0.05 + blastProgress * 0.48),
         1 - Math.exp(-delta * 5),
       );
       mesh.scale.z = THREE.MathUtils.lerp(
         mesh.scale.z,
-        asteroid.scale[2] * (1 + avoidance * 0.05),
+        asteroid.scale[2] * (1 + avoidance * 0.05 + blastProgress * 0.48),
         1 - Math.exp(-delta * 5),
       );
     });
+
+    asteroidMaterial.opacity = 0.96 - blastProgress * 0.82;
+    asteroidMaterial.emissive.set("#8db0ff");
+    asteroidMaterial.emissiveIntensity = blastProgress * 0.72;
   });
 
   return (

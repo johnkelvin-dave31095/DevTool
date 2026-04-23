@@ -10,7 +10,10 @@ const SpaceHeroCanvas = lazy(async () => {
 });
 
 type LoginPageProps = {
-  onLogin: (payload: { email: string; password: string }) => void | Promise<void>;
+  onLogin: (payload: {
+    email: string;
+    password: string;
+  }) => void | Promise<void>;
   isLoggingIn: boolean;
   isLaunching: boolean;
   error: string | null;
@@ -68,6 +71,10 @@ export function LoginPage({
     setResetSignal((value) => value + 1);
   }
 
+  function handleRegenerateScene() {
+    window.location.reload();
+  }
+
   function handlePreviewLaunch() {
     setIsPreviewLaunching(true);
   }
@@ -77,14 +84,51 @@ export function LoginPage({
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(90,132,255,0.24),transparent_24%),radial-gradient(circle_at_bottom,rgba(71,197,165,0.16),transparent_30%),linear-gradient(180deg,#050c19_0%,#020611_100%)]" />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-6 pt-5">
-        <button
-          type="button"
-          onClick={handleReturnToLogin}
-          disabled={effectiveLaunching}
-          className="pointer-events-auto h-10 rounded-full border border-[rgba(177,214,255,0.18)] bg-[rgba(8,16,31,0.72)] px-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#dbe9ff] shadow-[0_14px_32px_rgba(2,6,18,0.34)] backdrop-blur-xl transition-colors hover:bg-[rgba(13,24,45,0.9)]"
-        >
-          Login
-        </button>
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleReturnToLogin}
+            disabled={effectiveLaunching}
+            className="h-10 rounded-full border border-[rgba(177,214,255,0.18)] bg-[rgba(8,16,31,0.72)] px-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#dbe9ff] shadow-[0_14px_32px_rgba(2,6,18,0.34)] backdrop-blur-xl transition-colors hover:bg-[rgba(13,24,45,0.9)]"
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            onClick={handleRegenerateScene}
+            disabled={effectiveLaunching}
+            className="h-10 rounded-full border border-[rgba(122,227,198,0.18)] bg-[rgba(7,26,24,0.72)] px-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d9fff4] shadow-[0_14px_32px_rgba(2,10,12,0.28)] backdrop-blur-xl transition-colors hover:bg-[rgba(10,38,33,0.9)]"
+          >
+            Regen
+          </button>
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute left-6 top-1/2 z-10 hidden -translate-y-1/2 xl:block">
+        <div className="space-y-7 text-white/92">
+          <div className="space-y-1 font-mono text-[12px] leading-none tracking-[0.28em]">
+            <p>+</p>
+            <p>++</p>
+            <p>+++</p>
+            <p className="pt-2 text-[11px] uppercase tracking-[0.34em] text-white">
+              Scroll to drift deeper
+            </p>
+            <p>+++</p>
+            <p>++</p>
+            <p>+</p>
+          </div>
+          <div className="space-y-1 font-mono text-[12px] leading-none tracking-[0.28em]">
+            <p>+</p>
+            <p>++</p>
+            <p>+++</p>
+            <p className="pt-2 text-[11px] uppercase tracking-[0.34em] text-white">
+              Click the worlds awake
+            </p>
+            <p>+++</p>
+            <p>++</p>
+            <p>+</p>
+          </div>
+        </div>
       </div>
 
       <div className="absolute inset-0">
@@ -149,7 +193,11 @@ export function LoginPage({
                       disabled={isLoggingIn || effectiveLaunching}
                       className="h-11 w-full rounded-full bg-[#dfeeff] text-[15px] font-semibold text-[#081324] shadow-[0_16px_36px_rgba(157,204,255,0.2)] hover:bg-white"
                     >
-                      {effectiveLaunching ? "Warping" : isLoggingIn ? "Signing in" : "Enter"}
+                      {effectiveLaunching
+                        ? "Warping"
+                        : isLoggingIn
+                          ? "Signing in"
+                          : "Enter"}
                     </Button>
                     <Button
                       type="button"
