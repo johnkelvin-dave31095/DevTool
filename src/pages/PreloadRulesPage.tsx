@@ -190,7 +190,7 @@ export function PreloadRulesPage({ currentEmail }: { currentEmail: string }) {
 
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-      <Card className="overflow-hidden border-border/80 bg-[linear-gradient(135deg,rgba(56,42,68,0.98),rgba(39,28,48,0.95))]">
+      <Card className="app-hero-surface-strong overflow-hidden border-border/80">
         <CardHeader className="gap-3 border-b border-border/80 pb-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-2xl">

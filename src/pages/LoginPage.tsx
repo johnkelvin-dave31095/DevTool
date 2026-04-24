@@ -29,10 +29,8 @@ export function LoginPage({
 }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [resetSignal, setResetSignal] = useState(0);
-  const [isPreviewLaunching, setIsPreviewLaunching] = useState(false);
   const [isLoginPanelDetached, setIsLoginPanelDetached] = useState(false);
-  const effectiveLaunching = isLaunching || isPreviewLaunching;
+  const effectiveLaunching = isLaunching;
 
   useEffect(() => {
     if (!isLaunching) {
@@ -48,21 +46,6 @@ export function LoginPage({
     };
   }, [isLaunching, onLaunchComplete]);
 
-  useEffect(() => {
-    if (!isPreviewLaunching) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setIsPreviewLaunching(false);
-      setResetSignal((value) => value + 1);
-    }, 4800);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [isPreviewLaunching]);
-
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onLogin({ email: email.trim(), password });
@@ -76,18 +59,8 @@ export function LoginPage({
     window.location.reload();
   }
 
-  function handlePreviewLaunch() {
-    setIsPreviewLaunching(true);
-  }
-
   const loginPanel = (
-    <div className="overflow-hidden rounded-[1.4rem] border border-[rgba(205,182,233,0.22)] bg-[rgba(39,28,48,0.58)] shadow-[0_30px_90px_rgba(18,12,24,0.44)] backdrop-blur-2xl">
-      <div className="border-b border-[rgba(205,182,233,0.16)] px-5 py-5 text-center">
-        <p className="font-studio text-[2rem] font-semibold tracking-[-0.06em] text-[#f5edff]">
-          Dev Tool
-        </p>
-      </div>
-
+    <div className="overflow-hidden border border-[rgba(205,182,233,0.22)] bg-[rgba(39,28,48,0.58)] shadow-[0_30px_90px_rgba(18,12,24,0.44)] backdrop-blur-2xl">
       <div className="px-5 py-5">
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
@@ -103,7 +76,7 @@ export function LoginPage({
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               disabled={isLoggingIn || effectiveLaunching}
-              className="h-11 rounded-[0.95rem] border-[rgba(205,182,233,0.18)] bg-[rgba(255,255,255,0.08)] px-4 text-[15px] text-[#f3ecff] shadow-none placeholder:text-[rgba(243,236,255,0.32)] focus:border-[#d0b7f1]"
+              className="h-11 rounded-none border-[rgba(205,182,233,0.18)] bg-[rgba(255,255,255,0.08)] px-4 text-[15px] text-[#f3ecff] shadow-none placeholder:text-[rgba(243,236,255,0.32)] focus:border-[#d0b7f1]"
             />
           </div>
 
@@ -121,17 +94,17 @@ export function LoginPage({
               onChange={(event) => setPassword(event.target.value)}
               disabled={isLoggingIn || effectiveLaunching}
               placeholder="Enter your password"
-              className="h-11 rounded-[0.95rem] border-[rgba(205,182,233,0.18)] bg-[rgba(255,255,255,0.08)] px-4 text-[15px] text-[#f3ecff] shadow-none placeholder:text-[rgba(243,236,255,0.32)] focus:border-[#d0b7f1]"
+              className="h-11 rounded-none border-[rgba(205,182,233,0.18)] bg-[rgba(255,255,255,0.08)] px-4 text-[15px] text-[#f3ecff] shadow-none placeholder:text-[rgba(243,236,255,0.32)] focus:border-[#d0b7f1]"
             />
           </div>
 
           {error ? (
-            <div className="rounded-[0.95rem] border border-[rgba(255,131,131,0.24)] bg-[rgba(255,131,131,0.10)] px-4 py-3 text-sm text-[#ffb0b0]">
+            <div className="border border-[rgba(255,131,131,0.24)] bg-[rgba(255,131,131,0.10)] px-4 py-3 text-sm text-[#ffb0b0]">
               {error}
             </div>
           ) : null}
 
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div>
             <Button
               type="submit"
               disabled={isLoggingIn || effectiveLaunching}
@@ -142,15 +115,6 @@ export function LoginPage({
                 : isLoggingIn
                   ? "Signing in"
                   : "Enter"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isLoggingIn || effectiveLaunching}
-              onClick={handlePreviewLaunch}
-              className="h-11 w-full rounded-full border-[rgba(205,182,233,0.22)] bg-[rgba(255,255,255,0.04)] text-[13px] font-semibold text-[#efe4ff] hover:bg-[rgba(255,255,255,0.08)]"
-            >
-              Preview Warp
             </Button>
           </div>
         </form>
@@ -212,12 +176,7 @@ export function LoginPage({
 
       <div className="absolute inset-0">
         <Suspense fallback={null}>
-          <SpaceHeroCanvas
-            resetSignal={resetSignal}
-            launchSignal={effectiveLaunching}
-          >
-            {!isLoginPanelDetached && !effectiveLaunching ? loginPanel : null}
-          </SpaceHeroCanvas>
+          <SpaceHeroCanvas launchSignal={effectiveLaunching} />
         </Suspense>
       </div>
 

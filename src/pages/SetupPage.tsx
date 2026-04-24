@@ -44,7 +44,7 @@ export function SetupPage({
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,rgba(79,60,93,0.38),rgba(28,21,36,0.96))] px-6 py-10 text-foreground sm:px-10">
+    <div className="app-shell min-h-screen px-6 py-10 text-foreground sm:px-10">
       <div className="mx-auto max-w-4xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">

@@ -26,11 +26,25 @@ import {
 } from "./lib/api";
 
 type AppModule = "clockify" | "rules";
+type AppTheme = "purple" | "light";
+
+const THEME_STORAGE_KEY = "devtool-theme";
+
+function getStoredTheme(): AppTheme {
+  if (typeof window === "undefined") {
+    return "purple";
+  }
+
+  return window.localStorage.getItem(THEME_STORAGE_KEY) === "light"
+    ? "light"
+    : "purple";
+}
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentEmail, setCurrentEmail] = useState("");
   const [activeModule, setActiveModule] = useState<AppModule>("clockify");
+  const [theme, setTheme] = useState<AppTheme>(() => getStoredTheme());
   const [setupState, setSetupState] = useState<"checking" | "needs_setup" | "ready">("checking");
   const [isEditingSetup, setIsEditingSetup] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -59,6 +73,11 @@ export default function App() {
     setIsAuthenticated(window.sessionStorage.getItem("devtool-auth") === "true");
     setCurrentEmail(window.sessionStorage.getItem("devtool-email") ?? "");
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!isAuthenticated || !currentEmail) {
@@ -266,7 +285,7 @@ export default function App() {
 
   if (setupState === "checking") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,rgba(79,60,93,0.38),rgba(28,21,36,0.96))] px-6">
+      <div className="app-shell flex min-h-screen items-center justify-center px-6">
         <div className="border border-border/80 bg-card/95 px-8 py-6 text-center shadow-[0_24px_48px_rgba(20,14,28,0.28)]">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
             DevTool
@@ -296,7 +315,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="app-shell min-h-screen bg-background text-foreground">
       <div className="grid min-h-screen lg:grid-cols-[196px_1fr]">
         <Sidebar
           activeModule={activeModule}
@@ -305,7 +324,11 @@ export default function App() {
           onLogout={handleLogout}
         />
         <div className="flex min-w-0 flex-col">
-          <Topbar currentEmail={currentEmail} />
+          <Topbar
+            currentEmail={currentEmail}
+            theme={theme}
+            onToggleTheme={() => setTheme((current) => (current === "purple" ? "light" : "purple"))}
+          />
           <ModuleRail
             activeModule={activeModule}
             onOpenSettings={handleOpenSettings}
@@ -322,7 +345,7 @@ export default function App() {
         </div>
       </div>
       {isSettingsOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(18,12,24,0.48)] p-6 backdrop-blur-sm">
+        <div className="settings-scrim fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-sm">
           <div className="w-full max-w-2xl border border-border/80 bg-card/98 shadow-[0_24px_60px_rgba(18,12,24,0.42)]">
             <div className="flex items-center justify-between border-b border-border/80 px-6 py-4">
               <div>

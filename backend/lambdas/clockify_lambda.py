@@ -77,16 +77,19 @@ def lambda_handler(event, context):
                         )
                         continue
 
-                    task = next(
-                        (
-                            item
-                            for item in project.get("tasks", [])
-                            if item.get("taskId") == validated_entry["taskId"]
-                        ),
-                        None,
-                    )
+                    task = None
 
-                    if not task:
+                    if validated_entry["taskId"]:
+                        task = next(
+                            (
+                                item
+                                for item in project.get("tasks", [])
+                                if item.get("taskId") == validated_entry["taskId"]
+                            ),
+                            None,
+                        )
+
+                    if validated_entry["taskId"] and not task:
                         skipped.append(
                             {
                                 "title": validated_entry["title"],
@@ -117,7 +120,7 @@ def lambda_handler(event, context):
                             "projectId": validated_entry["projectId"],
                             "projectName": project.get("projectName"),
                             "taskId": validated_entry["taskId"],
-                            "taskName": task.get("taskName"),
+                            "taskName": task.get("taskName") if task else None,
                             "timeEntryId": time_entry.get("id"),
                             "start": validated_entry["start"],
                             "end": validated_entry["end"],
@@ -372,7 +375,7 @@ def extract_entries(payload):
     if isinstance(payload, list):
         return payload
 
-    if isinstance(payload, dict) and payload.get("projectId") and payload.get("taskId"):
+    if isinstance(payload, dict) and payload.get("projectId"):
         return [payload]
 
     return []
@@ -415,9 +418,6 @@ def validate_push_entry(entry):
 
     if not project_id:
         raise ValidationError("Missing projectId.")
-
-    if not task_id:
-        raise ValidationError("Missing taskId.")
 
     start_dt = parse_iso_datetime(start)
     end_dt = parse_iso_datetime(end)
@@ -703,11 +703,13 @@ def create_time_entry(
         "billable": billable,
         "description": description,
         "projectId": project_id,
-        "taskId": task_id,
         "start": start,
         "end": end,
         "type": "REGULAR",
     }
+
+    if task_id:
+        body["taskId"] = task_id
 
     return request_json(
         url,

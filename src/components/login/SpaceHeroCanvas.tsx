@@ -1,6 +1,4 @@
-import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Html } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -376,14 +374,13 @@ function createExplosionFragments(
 }
 
 export function SpaceHeroCanvas({
-  children,
   resetSignal = 0,
   launchSignal = false,
 }: {
-  children?: ReactNode;
   resetSignal?: number;
   launchSignal?: boolean;
 }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const pointerRef = useRef<PointerState>({ active: false, x: 0, y: 0 });
   const scrollRef = useRef<ScrollState>({ current: 0, target: 0 });
   const blastTimeoutRef = useRef<number | null>(null);
@@ -416,6 +413,57 @@ export function SpaceHeroCanvas({
       if (blastTimeoutRef.current !== null) {
         window.clearTimeout(blastTimeoutRef.current);
       }
+    };
+  }, []);
+
+  function updatePointerFromViewport(clientX: number, clientY: number) {
+    const bounds = rootRef.current?.getBoundingClientRect();
+
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
+      pointerRef.current = { active: false, x: 0, y: 0 };
+      return;
+    }
+
+    const relativeX = clientX - bounds.left;
+    const relativeY = clientY - bounds.top;
+    const isInside =
+      relativeX >= 0 &&
+      relativeX <= bounds.width &&
+      relativeY >= 0 &&
+      relativeY <= bounds.height;
+
+    if (!isInside) {
+      pointerRef.current = { active: false, x: 0, y: 0 };
+      return;
+    }
+
+    const normalizedX = (relativeX / bounds.width) * 2 - 1;
+    const normalizedY = -((relativeY / bounds.height) * 2 - 1);
+
+    pointerRef.current = {
+      active: true,
+      x: THREE.MathUtils.clamp(normalizedX, -1, 1),
+      y: THREE.MathUtils.clamp(normalizedY, -1, 1),
+    };
+  }
+
+  useEffect(() => {
+    function handleWindowPointerMove(event: PointerEvent) {
+      updatePointerFromViewport(event.clientX, event.clientY);
+    }
+
+    function clearPointer() {
+      pointerRef.current = { active: false, x: 0, y: 0 };
+    }
+
+    window.addEventListener("pointermove", handleWindowPointerMove);
+    window.addEventListener("pointerleave", clearPointer);
+    window.addEventListener("blur", clearPointer);
+
+    return () => {
+      window.removeEventListener("pointermove", handleWindowPointerMove);
+      window.removeEventListener("pointerleave", clearPointer);
+      window.removeEventListener("blur", clearPointer);
     };
   }, []);
 
@@ -505,18 +553,7 @@ export function SpaceHeroCanvas({
   }
 
   function handlePointerMove(event: React.MouseEvent<HTMLDivElement>) {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const normalizedX = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
-    const normalizedY = -(
-      ((event.clientY - bounds.top) / bounds.height) * 2 -
-      1
-    );
-
-    pointerRef.current = {
-      active: true,
-      x: THREE.MathUtils.clamp(normalizedX, -1, 1),
-      y: THREE.MathUtils.clamp(normalizedY, -1, 1),
-    };
+    updatePointerFromViewport(event.clientX, event.clientY);
   }
 
   function handlePointerLeave() {
@@ -534,6 +571,7 @@ export function SpaceHeroCanvas({
 
   return (
     <div
+      ref={rootRef}
       className="absolute inset-0"
       onMouseMove={handlePointerMove}
       onMouseLeave={handlePointerLeave}
@@ -600,9 +638,7 @@ export function SpaceHeroCanvas({
           sceneBlast={sceneBlast}
           blackHoleInteraction={blackHoleInteraction}
           onBlackHoleClick={handleBlackHoleClick}
-        >
-          {children}
-        </SceneRoot>
+        />
       </Canvas>
     </div>
   );
@@ -611,7 +647,6 @@ export function SpaceHeroCanvas({
 function SceneRoot({
   pointerRef,
   scrollRef,
-  children,
   launchSignal,
   planetInteractions,
   onPlanetClick,
@@ -621,7 +656,6 @@ function SceneRoot({
 }: {
   pointerRef: React.MutableRefObject<PointerState>;
   scrollRef: React.MutableRefObject<ScrollState>;
-  children?: ReactNode;
   launchSignal: boolean;
   planetInteractions: PlanetInteractionState[];
   onPlanetClick: (planetIndex: number) => void;
@@ -869,7 +903,6 @@ function SceneRoot({
           sceneBlast={sceneBlast}
         />
       ))}
-      {children ? <LoginAnchor>{children}</LoginAnchor> : null}
       <AsteroidField
         pointerRef={pointerRef}
         scrollRef={scrollRef}
@@ -912,25 +945,6 @@ function SceneBlastLight({ sceneBlast }: { sceneBlast: SceneBlastState }) {
       distance={90}
       color="#eef5ff"
     />
-  );
-}
-
-function LoginAnchor({ children }: { children: ReactNode }) {
-  const anchor = PLANETS[0];
-
-  return (
-    <group
-      position={[
-        anchor.center[0] - 1,
-        anchor.center[1] + 0.6,
-        anchor.center[2] + 0.1,
-      ]}
-      rotation={[-0.05, -0.26, 6.27]}
-    >
-      <Html transform distanceFactor={7.7} occlude={false}>
-        <div className="pointer-events-auto w-[16.8rem]">{children}</div>
-      </Html>
-    </group>
   );
 }
 

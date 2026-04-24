@@ -5,8 +5,10 @@ import {
   ArrowRightLeft,
   CheckCircle2,
   Clock3,
+  Plus,
   X,
   RefreshCw,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 
@@ -53,10 +55,14 @@ type AppToast = {
   tone: "success" | "warning";
 };
 
+type DescriptionMode = "body" | "title" | "body_title";
+
 type SyncDraftRow = {
   id: string;
+  source: "outlook" | "manual";
   outlookEventId?: string;
   sourceTitle: string;
+  sourceNotes: string;
   start: string;
   end: string;
   hours: number;
@@ -97,6 +103,8 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
     string | null
   >(null);
   const [toast, setToast] = useState<AppToast | null>(null);
+  const [descriptionMode, setDescriptionMode] =
+    useState<DescriptionMode>("body");
 
   const projectById = useMemo(
     () => new Map(projects.map((project) => [project.projectId, project])),
@@ -143,6 +151,8 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
   );
 
   const isBusy = isPreparingReview || isSubmitting;
+  const allRowsIncluded =
+    reviewedRows.length > 0 && reviewedRows.every((row) => row.include);
 
   const syncStatus = useMemo(() => {
     if (isPreparingReview) {
@@ -200,6 +210,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
         outlookData.events,
         catalog.projects,
         mappings.rules,
+        descriptionMode,
       );
 
       setEvents(outlookData.events);
@@ -277,7 +288,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
             start: string;
             end: string;
             projectId: string;
-            taskId: string;
+            taskId?: string;
             billable: boolean;
             outlookEventId?: string;
           }>;
@@ -291,7 +302,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
           start: row.start,
           end: row.end,
           projectId: row.projectId,
-          taskId: row.taskId,
+          ...(row.taskId ? { taskId: row.taskId } : {}),
           billable: true,
           outlookEventId: row.outlookEventId,
         })),
@@ -367,6 +378,63 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
     }));
   }
 
+  function handleSetAllIncluded(include: boolean) {
+    setDraftRows((current) =>
+      current.map((row) => ({
+        ...row,
+        include,
+      })),
+    );
+  }
+
+  function handleAddManualRow() {
+    if (projects.length === 0) {
+      setError(
+        "Load the review table first so Clockify projects are available for manual rows.",
+      );
+      return;
+    }
+
+    setError(null);
+    setSyncResult(null);
+    setDraftRows((current) => [createManualDraftRow(startDate), ...current]);
+  }
+
+  function handleRemoveRow(rowId: string) {
+    setDraftRows((current) => current.filter((row) => row.id !== rowId));
+
+    if (activeDescriptionRowId === rowId) {
+      setActiveDescriptionRowId(null);
+    }
+  }
+
+  function handleSourceTitleChange(rowId: string, sourceTitle: string) {
+    updateDraftRow(rowId, (row) => ({
+      ...row,
+      sourceTitle,
+    }));
+  }
+
+  function handleStartChange(rowId: string, localValue: string) {
+    updateDraftRow(rowId, (row) => {
+      const nextStart = fromUtcMinus7DateTimeLocalValue(localValue);
+
+      if (!nextStart) {
+        return {
+          ...row,
+          start: "",
+          end: "",
+        };
+      }
+
+      return {
+        ...row,
+        start: nextStart,
+        end: getEndFromStartAndHours(nextStart, row.hours),
+      };
+    });
+  }
+
   function handleProjectChange(rowId: string, projectId: string) {
     updateDraftRow(rowId, (row) => {
       const selectedProject = projectById.get(projectId);
@@ -410,11 +478,27 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
       return {
         ...row,
         hours: roundHours(nextHours),
-        end: new Date(
-          new Date(row.start).getTime() + nextHours * 60 * 60 * 1000,
-        ).toISOString(),
+        end: getEndFromStartAndHours(row.start, nextHours),
       };
     });
+  }
+
+  function handleDescriptionModeChange(mode: DescriptionMode) {
+    setDescriptionMode(mode);
+    setDraftRows((current) =>
+      current.map((row) =>
+        row.source === "outlook"
+          ? {
+              ...row,
+              description: buildDescriptionFromMode(
+                row.sourceTitle,
+                row.sourceNotes,
+                mode,
+              ),
+            }
+          : row,
+      ),
+    );
   }
 
   function addActivity(item: Omit<SyncActivity, "id" | "time">) {
@@ -467,7 +551,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                     type="date"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
-                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-background/80 text-foreground shadow-none [color-scheme:dark]"
+                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-background/80 text-foreground shadow-none"
                   />
                 </StudioField>
                 <StudioField label="End">
@@ -476,7 +560,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                     type="date"
                     value={endDate}
                     onChange={(event) => setEndDate(event.target.value)}
-                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-background/80 text-foreground shadow-none [color-scheme:dark]"
+                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-background/80 text-foreground shadow-none"
                   />
                 </StudioField>
               </div>
@@ -485,9 +569,9 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
 
               <div className="flex flex-wrap items-center gap-2 px-4 py-3 xl:min-w-[290px] xl:justify-center">
                 <InlineStat label="Draft" value={String(reviewedRows.length)} />
-                <span className="text-black/35">•</span>
+                <span className="text-primary/35">•</span>
                 <InlineStat label="Ready" value={String(summary.readyCount)} />
-                <span className="text-black/35">•</span>
+                <span className="text-primary/35">•</span>
                 <InlineStat
                   label="Review"
                   value={String(summary.needsReviewCount + summary.errorCount)}
@@ -546,7 +630,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
 
       <section>
         <Card className="overflow-hidden border-[hsl(var(--border))] bg-card/92 shadow-[0_22px_60px_rgba(20,14,28,0.24)]">
-          <CardHeader className="border-b border-border/80 bg-[linear-gradient(180deg,rgba(56,42,68,0.92),rgba(39,28,48,0.88))] px-4 py-3">
+          <CardHeader className="app-hero-surface border-b border-border/80 px-4 py-3">
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex min-w-0 flex-col xl:flex-row xl:items-center xl:gap-3">
                 <CardTitle className="font-studio shrink-0 text-3xl font-semibold tracking-[-0.04em] text-foreground">
@@ -571,11 +655,60 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
           </CardHeader>
           <CardContent className="space-y-4 p-5 pt-4">
             {reviewedRows.length === 0 ? (
-              <div className="rounded-[22px] border border-dashed border-border/80 bg-[linear-gradient(135deg,rgba(56,42,68,0.94),rgba(39,28,48,0.92))] px-5 py-5 text-sm text-muted-foreground">
+              <div className="app-hero-surface-strong rounded-[22px] border border-dashed border-border/80 px-5 py-5 text-sm text-muted-foreground">
                 No review rows.
               </div>
             ) : (
               <>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-wrap items-start gap-3">
+                    <div className="border border-border/80 bg-background/90 px-4 py-3 shadow-[0_6px_18px_rgba(18,12,24,0.08)]">
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                        <label className="inline-flex items-center gap-3 text-[15px] text-foreground">
+                          <input
+                            type="checkbox"
+                            checked={allRowsIncluded}
+                            onChange={(event) =>
+                              handleSetAllIncluded(event.target.checked)
+                            }
+                            disabled={reviewedRows.length === 0}
+                            className="h-6 w-6 rounded-md border-border bg-background text-primary focus:ring-ring"
+                          />
+                          <span className="font-medium">Select all</span>
+                        </label>
+
+                        <DescriptionModeOption
+                          label="Body to description"
+                          checked={descriptionMode === "body"}
+                          onChange={() => handleDescriptionModeChange("body")}
+                        />
+                        <DescriptionModeOption
+                          label="Title to description"
+                          checked={descriptionMode === "title"}
+                          onChange={() => handleDescriptionModeChange("title")}
+                        />
+                        <DescriptionModeOption
+                          label="Title + body to description"
+                          checked={descriptionMode === "body_title"}
+                          onChange={() =>
+                            handleDescriptionModeChange("body_title")
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 rounded-full px-4"
+                    onClick={handleAddManualRow}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add row
+                  </Button>
+                </div>
+
                 <div className="overflow-hidden border border-border/80 bg-card/70">
                   <table className="w-full table-fixed border-collapse bg-background text-sm">
                     <colgroup>
@@ -587,7 +720,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                       <col className="w-[17.5%]" />
                       <col className="w-[19%]" />
                     </colgroup>
-                    <thead className="bg-[linear-gradient(180deg,rgba(64,48,79,0.98),rgba(47,35,59,0.94))] text-left text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
+                    <thead className="app-table-head text-left text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2.5 font-semibold">Sync</th>
                         <th className="px-3 py-2.5 font-semibold">
@@ -611,7 +744,14 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                           onEditDescription={() =>
                             setActiveDescriptionRowId(row.id)
                           }
+                          onRemove={() => handleRemoveRow(row.id)}
                           onToggleInclude={() => handleToggleInclude(row.id)}
+                          onSourceTitleChange={(sourceTitle) =>
+                            handleSourceTitleChange(row.id, sourceTitle)
+                          }
+                          onStartChange={(start) =>
+                            handleStartChange(row.id, start)
+                          }
                           onProjectChange={(projectId) =>
                             handleProjectChange(row.id, projectId)
                           }
@@ -704,11 +844,11 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
 
       {activeDescriptionRow ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(18,12,24,0.48)] px-4 py-6 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(18,12,24,0.68)] px-4 py-6"
           onClick={() => setActiveDescriptionRowId(null)}
         >
           <div
-            className="w-full max-w-2xl rounded-[28px] border border-border/80 bg-card/98 p-5 shadow-[0_28px_80px_rgba(18,12,24,0.42)]"
+            className="w-full max-w-2xl rounded-[28px] border border-border bg-card p-5 shadow-[0_28px_80px_rgba(18,12,24,0.42)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -817,7 +957,10 @@ function SyncReviewRow({
   row,
   projects,
   onEditDescription,
+  onRemove,
   onToggleInclude,
+  onSourceTitleChange,
+  onStartChange,
   onProjectChange,
   onTaskChange,
   onHoursChange,
@@ -825,7 +968,10 @@ function SyncReviewRow({
   row: ReviewedSyncRow;
   projects: ClockifyProject[];
   onEditDescription: () => void;
+  onRemove: () => void;
   onToggleInclude: () => void;
+  onSourceTitleChange: (sourceTitle: string) => void;
+  onStartChange: (start: string) => void;
   onProjectChange: (projectId: string) => void;
   onTaskChange: (taskId: string) => void;
   onHoursChange: (hours: string) => void;
@@ -863,19 +1009,58 @@ function SyncReviewRow({
       </td>
       <td className="border-l border-border/70 px-3 py-2">
         <div className="min-w-0 space-y-0.5">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-primary">
-            <Clock3 className="h-3 w-3" />
-            Event
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-primary">
+              <Clock3 className="h-3 w-3" />
+              {row.source === "manual" ? "Manual" : "Event"}
+            </div>
+            {row.source === "manual" ? (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-accent"
+                aria-label="Remove manual row"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
           </div>
-          <p
-            className="truncate font-semibold leading-5 text-foreground"
-            title={row.sourceTitle}
-          >
-            {row.sourceTitle}
-          </p>
-          <p className="truncate text-xs leading-5 text-muted-foreground">
-            {formatDateTime(row.start)} - {formatDateTime(row.end)}
-          </p>
+          {row.source === "manual" ? (
+            <div className="space-y-2">
+              <Input
+                type="text"
+                value={row.sourceTitle}
+                onChange={(event) => onSourceTitleChange(event.target.value)}
+                disabled={!row.include}
+                placeholder="Manual entry title"
+                className="h-9 rounded-none border-border bg-background/80 shadow-none"
+              />
+              <Input
+                type="datetime-local"
+                value={toUtcMinus7DateTimeLocalValue(row.start)}
+                onChange={(event) => onStartChange(event.target.value)}
+                disabled={!row.include}
+                className="h-9 rounded-none border-border bg-background/80 text-xs shadow-none"
+              />
+              <p className="truncate text-xs leading-5 text-muted-foreground">
+                {row.start && row.end
+                  ? `${formatDateTime(row.start)} - ${formatDateTime(row.end)}`
+                  : "Pick a start time"}
+              </p>
+            </div>
+          ) : (
+            <>
+              <p
+                className="truncate font-semibold leading-5 text-foreground"
+                title={row.sourceTitle}
+              >
+                {row.sourceTitle}
+              </p>
+              <p className="truncate text-xs leading-5 text-muted-foreground">
+                {formatDateTime(row.start)} - {formatDateTime(row.end)}
+              </p>
+            </>
+          )}
         </div>
       </td>
       <td className="border-l border-border/70 px-3 py-2">
@@ -901,7 +1086,7 @@ function SyncReviewRow({
           className="h-9 w-full rounded-none border-border bg-background/80 shadow-none"
         >
           <option value="">
-            {row.projectId ? "Select task" : "Pick project first"}
+            {row.projectId ? "No task" : "Pick project first"}
           </option>
           {availableTasks.map((task) => (
             <option key={task.taskId} value={task.taskId}>
@@ -1165,6 +1350,7 @@ function buildDraftRows(
   events: OutlookEvent[],
   projects: ClockifyProject[],
   mappingRules: OutlookMappingRule[],
+  descriptionMode: DescriptionMode,
 ): SyncDraftRow[] {
   const projectsByName = new Map(
     projects.map((project) => [normalizeName(project.projectName), project]),
@@ -1172,21 +1358,25 @@ function buildDraftRows(
 
   return events.map((event) => {
     const mappingRule = findFirstMatchingRule(event.title, mappingRules);
-    const fallbackTitleParts = splitTitle(event.title);
-    const projectName = mappingRule?.projectName ?? fallbackTitleParts[0];
-    const taskName = mappingRule?.taskName ?? fallbackTitleParts[1];
-    const suggestedProject = projectsByName.get(normalizeName(projectName));
-    const suggestedTask = findTaskByName(suggestedProject?.tasks ?? [], taskName);
-    const description =
-      cleanRuleDescription(mappingRule?.descriptionTemplate) ?? event.notes ?? "";
+      const fallbackTitleParts = splitTitle(event.title);
+      const projectName = mappingRule?.projectName ?? fallbackTitleParts[0];
+      const taskName = mappingRule?.taskName ?? fallbackTitleParts[1];
+      const suggestedProject = projectsByName.get(normalizeName(projectName));
+      const suggestedTask = findTaskByName(suggestedProject?.tasks ?? [], taskName);
+      const sourceNotes = event.notes ?? "";
+      const description =
+        cleanRuleDescription(mappingRule?.descriptionTemplate) ??
+        buildDescriptionFromMode(event.title, sourceNotes, descriptionMode);
 
-    return {
-      id: getEventKey(event),
-      outlookEventId: event.outlookEventId,
-      sourceTitle: event.title,
-      start: event.start,
-      end: event.end,
-      hours: roundHours(
+      return {
+        id: getEventKey(event),
+        source: "outlook",
+        outlookEventId: event.outlookEventId,
+        sourceTitle: event.title,
+        sourceNotes,
+        start: event.start,
+        end: event.end,
+        hours: roundHours(
         event.hours > 0 ? event.hours : calculateHours(event.start, event.end),
       ),
       description,
@@ -1229,15 +1419,17 @@ function validateDraftRow(
     });
   }
 
-  if (!row.taskId) {
-    issues.push({
-      tone: "warning",
-      message: "Select a task under the chosen project.",
-    });
-  } else if (!task) {
+  if (row.taskId && !task) {
     issues.push({
       tone: "error",
       message: "Selected task does not belong to the chosen project.",
+    });
+  }
+
+  if (!row.sourceTitle.trim()) {
+    issues.push({
+      tone: "warning",
+      message: row.source === "manual" ? "Add a title for the manual row." : "Title is missing.",
     });
   }
 
@@ -1290,6 +1482,34 @@ function roundHours(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function createManualDraftRow(startDate: string): SyncDraftRow {
+  const start = toUtcIsoFromUtcMinus7Value(`${startDate}T09:00:00-07:00`);
+
+  return {
+    id: createRowId(),
+    source: "manual",
+    sourceTitle: "",
+    sourceNotes: "",
+    start,
+    end: getEndFromStartAndHours(start, 1),
+    hours: 1,
+    description: "",
+    include: true,
+    projectId: "",
+    taskId: "",
+  };
+}
+
+function getEndFromStartAndHours(start: string, hours: number) {
+  const startTime = new Date(start).getTime();
+
+  if (!Number.isFinite(startTime) || !Number.isFinite(hours) || hours <= 0) {
+    return "";
+  }
+
+  return new Date(startTime + hours * 60 * 60 * 1000).toISOString();
+}
+
 function getEventKey(event: OutlookEvent) {
   return event.outlookEventId ?? `${event.title}-${event.start}-${event.end}`;
 }
@@ -1338,6 +1558,29 @@ function findFirstMatchingRule(
   );
 }
 
+function DescriptionModeOption({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <label className="inline-flex items-center gap-2 text-sm text-foreground">
+      <input
+        type="radio"
+        name="description-mode"
+        checked={checked}
+        onChange={onChange}
+        className="h-4 w-4 border-border text-primary focus:ring-ring"
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
 function findTaskByName(tasks: ClockifyTask[], taskName: string) {
   const normalizedTaskName = normalizeName(taskName);
 
@@ -1353,6 +1596,25 @@ function cleanRuleDescription(value?: string | null) {
   return cleaned ? cleaned : null;
 }
 
+function buildDescriptionFromMode(
+  title: string,
+  notes: string,
+  mode: DescriptionMode,
+) {
+  const cleanTitle = title.trim();
+  const cleanNotes = notes.trim();
+
+  if (mode === "title") {
+    return cleanTitle;
+  }
+
+  if (mode === "body_title") {
+    return [cleanTitle, cleanNotes].filter(Boolean).join("\n\n");
+  }
+
+  return cleanNotes;
+}
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -1361,6 +1623,30 @@ function formatDateTime(value: string) {
     minute: "2-digit",
     timeZone: "Etc/GMT+7",
   }).format(new Date(value));
+}
+
+function toUtcMinus7DateTimeLocalValue(value: string) {
+  const timestamp = new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return "";
+  }
+
+  return new Date(timestamp - 7 * 60 * 60 * 1000).toISOString().slice(0, 16);
+}
+
+function fromUtcMinus7DateTimeLocalValue(value: string) {
+  return value ? toUtcIsoFromUtcMinus7Value(`${value}:00-07:00`) : "";
+}
+
+function toUtcIsoFromUtcMinus7Value(value: string) {
+  const timestamp = new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return "";
+  }
+
+  return new Date(timestamp).toISOString();
 }
 
 function getDescriptionPreview(value: string) {
@@ -1424,6 +1710,17 @@ function createActivityId() {
   }
 
   return `activity-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createRowId() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return `manual-${crypto.randomUUID()}`;
+  }
+
+  return `manual-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function isClockifySyncResponse(value: unknown): value is ClockifySyncResponse {

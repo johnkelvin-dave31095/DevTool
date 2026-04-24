@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: dark;
   --background: 278 22% 15%;
   --foreground: 280 22% 94%;
   --card: 276 18% 20%;
@@ -25,6 +26,57 @@
   --sea-foam: 278 22% 40%;
   --sea-ink: 280 22% 94%;
   --sand: 278 18% 22%;
+  --body-image:
+    radial-gradient(circle at top left, hsla(var(--primary) / 0.18), transparent 32%),
+    radial-gradient(circle at bottom right, hsla(var(--sea-foam) / 0.22), transparent 36%),
+    linear-gradient(180deg, hsl(278 24% 29%), hsl(var(--background)));
+  --app-shell-image: linear-gradient(180deg, rgba(79, 60, 93, 0.38), rgba(28, 21, 36, 0.96));
+  --hero-surface-image: linear-gradient(180deg, rgba(56, 42, 68, 0.92), rgba(39, 28, 48, 0.88));
+  --hero-surface-strong-image:
+    linear-gradient(135deg, rgba(56, 42, 68, 0.98), rgba(39, 28, 48, 0.95));
+  --table-head-image: linear-gradient(180deg, rgba(64, 48, 79, 0.98), rgba(47, 35, 59, 0.94));
+  --settings-scrim: rgba(18, 12, 24, 0.48);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: 0 0% 100%;
+  --foreground: 274 28% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 274 28% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 274 28% 16%;
+  --primary: 269 44% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 274 45% 96%;
+  --secondary-foreground: 274 28% 20%;
+  --muted: 274 36% 97%;
+  --muted-foreground: 275 15% 42%;
+  --accent: 17 83% 58%;
+  --accent-foreground: 0 0% 100%;
+  --border: 272 39% 84%;
+  --input: 272 39% 84%;
+  --ring: 269 44% 48%;
+  --sea-foam: 269 36% 58%;
+  --sea-ink: 274 28% 18%;
+  --sand: 274 34% 96%;
+  --body-image:
+    repeating-linear-gradient(
+      135deg,
+      hsla(var(--primary) / 0.09) 0,
+      hsla(var(--primary) / 0.09) 1px,
+      transparent 1px,
+      transparent 34px
+    ),
+    linear-gradient(180deg, hsl(0 0% 100%), hsl(274 60% 99%));
+  --app-shell-image: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 244, 255, 0.92));
+  --hero-surface-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 244, 255, 0.95));
+  --hero-surface-strong-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 1), rgba(246, 239, 255, 0.98));
+  --table-head-image:
+    linear-gradient(180deg, rgba(247, 242, 255, 0.98), rgba(241, 234, 252, 0.96));
+  --settings-scrim: rgba(112, 82, 166, 0.16);
 }
 
 * {
@@ -34,10 +86,7 @@
 body {
   min-width: 320px;
   margin: 0;
-  background:
-    radial-gradient(circle at top left, hsla(var(--primary) / 0.18), transparent 32%),
-    radial-gradient(circle at bottom right, hsla(var(--sea-foam) / 0.22), transparent 36%),
-    linear-gradient(180deg, hsl(278 24% 29%), hsl(var(--background)));
+  background: var(--body-image);
   font-family:
     "Aptos", "Segoe UI Variable", "Segoe UI", "Helvetica Neue", "Arial Nova",
     sans-serif;
@@ -55,4 +104,26 @@ textarea {
   font-family:
     "Aptos Display", "Aptos", "Segoe UI Variable", "Segoe UI", "Helvetica Neue",
     sans-serif;
+}
+
+@layer utilities {
+  .app-shell {
+    background: var(--app-shell-image);
+  }
+
+  .app-hero-surface {
+    background: var(--hero-surface-image);
+  }
+
+  .app-hero-surface-strong {
+    background: var(--hero-surface-strong-image);
+  }
+
+  .app-table-head {
+    background: var(--table-head-image);
+  }
+
+  .settings-scrim {
+    background: var(--settings-scrim);
+  }
 }
