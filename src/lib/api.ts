@@ -4,6 +4,7 @@ export const API_BASE_URL =
 
 export const OUTLOOK_EVENTS_URL = `${API_BASE_URL}/DevTools/OutlookCalendar`;
 export const CLOCKIFY_SYNC_URL = `${API_BASE_URL}/DevTools/Clockify`;
+export const ASANA_TICKETS_URL = `${API_BASE_URL}/DevTools/Asana`;
 export const INTEGRATION_SETUP_URL =
   import.meta.env.VITE_SETUP_URL ?? `${API_BASE_URL}/DevTools/AccountSetup`;
 
@@ -147,6 +148,21 @@ export type MappingDeleteResponse = {
   action: "deleteMapping";
   deleted: boolean;
   ruleId: string;
+};
+
+export type AsanaTaskSummary = {
+  title?: string;
+  projects: string[];
+  section?: string[];
+  ticket_link?: string;
+  ticket_date_creation: string | null;
+  ticket_date_done: string | null;
+  description: string;
+};
+
+export type AsanaTicketsResponse = {
+  count: number;
+  tasks: AsanaTaskSummary[];
 };
 
 export async function postJson<TResponse, TBody>(

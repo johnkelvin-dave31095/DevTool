@@ -387,18 +387,18 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
     );
   }
 
-  function handleAddManualRow() {
-    if (projects.length === 0) {
-      setError(
-        "Load the review table first so Clockify projects are available for manual rows.",
-      );
-      return;
-    }
+    function handleAddManualRow() {
+      if (projects.length === 0) {
+        setError(
+          "Load the review table first so Clockify projects are available for manual rows.",
+        );
+        return;
+      }
 
-    setError(null);
-    setSyncResult(null);
-    setDraftRows((current) => [createManualDraftRow(startDate), ...current]);
-  }
+      setError(null);
+      setSyncResult(null);
+      setDraftRows((current) => [...current, createManualDraftRow(startDate)]);
+    }
 
   function handleRemoveRow(rowId: string) {
     setDraftRows((current) => current.filter((row) => row.id !== rowId));
@@ -630,40 +630,18 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
 
       <section>
         <Card className="overflow-hidden border-[hsl(var(--border))] bg-card/92 shadow-[0_22px_60px_rgba(20,14,28,0.24)]">
-          <CardHeader className="app-hero-surface border-b border-border/80 px-4 py-3">
-            <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 flex-col xl:flex-row xl:items-center xl:gap-3">
-                <CardTitle className="font-studio shrink-0 text-3xl font-semibold tracking-[-0.04em] text-foreground">
-                  Sync Review Table
-                </CardTitle>
-              </div>
+            <CardHeader className="app-hero-surface border-b border-border/80 px-4 py-3">
+              <div className="flex flex-col gap-2 xl:flex-row xl:items-stretch xl:justify-between">
+                <div className="flex min-w-0 flex-col xl:flex-row xl:items-center xl:gap-3">
+                  <CardTitle className="font-studio shrink-0 text-3xl font-semibold tracking-[-0.04em] text-foreground">
+                    Sync Review Table
+                  </CardTitle>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-sm xl:justify-end">
-                <InlineStat label="Ready" value={String(summary.readyCount)} />
-                <span className="h-1 w-1 rounded-full bg-primary/35" />
-                <InlineStat
-                  label="Review"
-                  value={String(summary.needsReviewCount + summary.errorCount)}
-                />
-                <span className="h-1 w-1 rounded-full bg-primary/35" />
-                <InlineStat
-                  label="Skipped"
-                  value={String(summary.skippedCount)}
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 p-5 pt-4">
-            {reviewedRows.length === 0 ? (
-              <div className="app-hero-surface-strong rounded-[22px] border border-dashed border-border/80 px-5 py-5 text-sm text-muted-foreground">
-                No review rows.
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex flex-wrap items-start gap-3">
-                    <div className="border border-border/80 bg-background/90 px-4 py-3 shadow-[0_6px_18px_rgba(18,12,24,0.08)]">
-                      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                <div className="flex flex-wrap items-start gap-3 xl:justify-end">
+                  <div className="border border-border/80 bg-background/90 px-4 py-3 shadow-[0_6px_18px_rgba(18,12,24,0.08)]">
+                    <div className="flex self-stretch">
+                      <div className="flex items-center pr-4">
                         <label className="inline-flex items-center gap-3 text-[15px] text-foreground">
                           <input
                             type="checkbox"
@@ -676,7 +654,9 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                           />
                           <span className="font-medium">Select all</span>
                         </label>
+                      </div>
 
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-l border-border/80 pl-4">
                         <DescriptionModeOption
                           label="Body to description"
                           checked={descriptionMode === "body"}
@@ -698,19 +678,18 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                     </div>
                   </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 rounded-full px-4"
-                    onClick={handleAddManualRow}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add row
-                  </Button>
                 </div>
-
-                <div className="overflow-hidden border border-border/80 bg-card/70">
-                  <table className="w-full table-fixed border-collapse bg-background text-sm">
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4 p-5 pt-4">
+              {reviewedRows.length === 0 ? (
+              <div className="app-hero-surface-strong rounded-[22px] border border-dashed border-border/80 px-5 py-5 text-sm text-muted-foreground">
+                No review rows.
+              </div>
+              ) : (
+                <>
+                  <div className="overflow-hidden border border-border/80 bg-card/70">
+                    <table className="w-full table-fixed border-collapse bg-background text-sm">
                     <colgroup>
                       <col className="w-[6.5%]" />
                       <col className="w-[19%]" />
@@ -767,28 +746,38 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                   </table>
                 </div>
 
-                <div className="flex justify-end pt-1">
-                  <Button
-                    onClick={handlePushToClockify}
-                    disabled={!summary.canSubmit || isSubmitting}
-                    className="h-11 rounded-2xl bg-primary px-5 text-primary-foreground shadow-[0_14px_28px_rgba(36,24,48,0.28)] hover:bg-primary/90"
-                  >
-                    {isSubmitting ? (
-                      <span className="-my-2 flex h-9 w-9 items-center justify-center">
-                        <Lottie
-                          animationData={clockTimeAnimation}
-                          loop
-                          className="h-9 w-9"
-                        />
-                      </span>
-                    ) : (
-                      <ArrowRightLeft className="h-4 w-4" />
-                    )}
-                    Push to Clockify
-                  </Button>
-                </div>
-              </>
-            )}
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 rounded-full px-4"
+                      onClick={handleAddManualRow}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add row
+                    </Button>
+
+                    <Button
+                      onClick={handlePushToClockify}
+                      disabled={!summary.canSubmit || isSubmitting}
+                      className="h-11 rounded-2xl bg-primary px-5 text-primary-foreground shadow-[0_14px_28px_rgba(36,24,48,0.28)] hover:bg-primary/90"
+                    >
+                      {isSubmitting ? (
+                        <span className="-my-2 flex h-9 w-9 items-center justify-center">
+                          <Lottie
+                            animationData={clockTimeAnimation}
+                            loop
+                            className="h-9 w-9"
+                          />
+                        </span>
+                      ) : (
+                        <ArrowRightLeft className="h-4 w-4" />
+                      )}
+                      Push to Clockify
+                    </Button>
+                  </div>
+                </>
+              )}
           </CardContent>
         </Card>
       </section>
@@ -906,7 +895,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
         <div className="fixed bottom-5 right-5 z-50 w-full max-w-sm">
           <div
             className={cn(
-              "border bg-card/98 p-4 shadow-[0_22px_48px_rgba(18,12,24,0.42)] backdrop-blur-md",
+              "border bg-card p-4 shadow-[0_22px_48px_rgba(18,12,24,0.42)]",
               toast.tone === "success"
                 ? "border-primary/24"
                 : "border-[rgba(240,119,93,0.22)]",

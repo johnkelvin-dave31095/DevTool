@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ArrowRightLeft,
+  Blocks,
   KeyRound,
   Settings2,
   SlidersHorizontal,
@@ -12,6 +13,7 @@ import { Footer } from "./components/Footer";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { Button } from "./components/ui/button";
+import { AsanaPage } from "./pages/AsanaPage";
 import { IntegrationPage } from "./pages/IntegrationPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PreloadRulesPage } from "./pages/PreloadRulesPage";
@@ -25,7 +27,7 @@ import {
   postJson,
 } from "./lib/api";
 
-type AppModule = "clockify" | "rules";
+type AppModule = "outlook" | "asana" | "rules";
 type AppTheme = "purple" | "light";
 
 const THEME_STORAGE_KEY = "devtool-theme";
@@ -43,7 +45,7 @@ function getStoredTheme(): AppTheme {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentEmail, setCurrentEmail] = useState("");
-  const [activeModule, setActiveModule] = useState<AppModule>("clockify");
+  const [activeModule, setActiveModule] = useState<AppModule>("outlook");
   const [theme, setTheme] = useState<AppTheme>(() => getStoredTheme());
   const [setupState, setSetupState] = useState<"checking" | "needs_setup" | "ready">("checking");
   const [isEditingSetup, setIsEditingSetup] = useState(false);
@@ -202,7 +204,7 @@ export default function App() {
     window.sessionStorage.removeItem("devtool-email");
     setIsAuthenticated(false);
     setCurrentEmail("");
-    setActiveModule("clockify");
+    setActiveModule("outlook");
     setSetupState("checking");
     setIsEditingSetup(false);
     setIsSettingsOpen(false);
@@ -335,8 +337,10 @@ export default function App() {
             onSelectModule={setActiveModule}
           />
           <main className="flex-1">
-            {activeModule === "clockify" ? (
+            {activeModule === "outlook" ? (
               <IntegrationPage currentEmail={currentEmail} />
+            ) : activeModule === "asana" ? (
+              <AsanaPage currentEmail={currentEmail} />
             ) : (
               <PreloadRulesPage currentEmail={currentEmail} />
             )}
@@ -346,7 +350,7 @@ export default function App() {
       </div>
       {isSettingsOpen ? (
         <div className="settings-scrim fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-sm">
-          <div className="w-full max-w-2xl border border-border/80 bg-card/98 shadow-[0_24px_60px_rgba(18,12,24,0.42)]">
+          <div className="w-full max-w-2xl border border-border/80 bg-card shadow-[0_24px_60px_rgba(18,12,24,0.42)]">
             <div className="flex items-center justify-between border-b border-border/80 px-6 py-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
@@ -415,12 +419,21 @@ function ModuleRail({
       <div className="flex gap-2 overflow-x-auto">
         <Button
           type="button"
-          variant={activeModule === "clockify" ? "default" : "outline"}
+          variant={activeModule === "outlook" ? "default" : "outline"}
           className="h-10 shrink-0 rounded-full px-4"
-          onClick={() => onSelectModule("clockify")}
+          onClick={() => onSelectModule("outlook")}
         >
           <ArrowRightLeft className="h-4 w-4" />
-          Clockify
+          Outlook
+        </Button>
+        <Button
+          type="button"
+          variant={activeModule === "asana" ? "default" : "outline"}
+          className="h-10 shrink-0 rounded-full px-4"
+          onClick={() => onSelectModule("asana")}
+        >
+          <Blocks className="h-4 w-4" />
+          Asana
         </Button>
         <Button
           type="button"
