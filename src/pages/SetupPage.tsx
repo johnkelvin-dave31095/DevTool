@@ -14,7 +14,11 @@ type SetupPageProps = {
   initialWorkspaceId?: string | null;
   hasExistingApiKey?: boolean;
   error: string | null;
-  onSave: (payload: { clockifyApiKey: string; clockifyWorkspaceId: string }) => void;
+  onSave: (payload: {
+    clockifyApiKey: string;
+    asanaApiKey: string;
+    clockifyWorkspaceId: string;
+  }) => void;
   onCancel?: () => void;
   onLogout: () => void;
 };
@@ -31,6 +35,7 @@ export function SetupPage({
   onLogout,
 }: SetupPageProps) {
   const [clockifyApiKey, setClockifyApiKey] = useState("");
+  const [asanaApiKey, setAsanaApiKey] = useState("");
   const [clockifyWorkspaceId, setClockifyWorkspaceId] = useState(
     initialWorkspaceId ?? DEFAULT_CLOCKIFY_WORKSPACE_ID,
   );
@@ -39,6 +44,7 @@ export function SetupPage({
     event.preventDefault();
     onSave({
       clockifyApiKey: clockifyApiKey.trim(),
+      asanaApiKey: asanaApiKey.trim(),
       clockifyWorkspaceId: clockifyWorkspaceId.trim(),
     });
   }
@@ -119,6 +125,19 @@ export function SetupPage({
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="asana-api-key" className="text-[11px] uppercase tracking-[0.24em] text-primary">
+                  Asana API key
+                </Label>
+                <Input
+                  id="asana-api-key"
+                  type="text"
+                  value={asanaApiKey}
+                  onChange={(event) => setAsanaApiKey(event.target.value)}
+                  className="h-12 rounded-none border-border bg-background/80 text-[15px] shadow-none"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="clockify-workspace-id" className="text-[11px] uppercase tracking-[0.24em] text-primary">
                   Clockify workspace id
                 </Label>
@@ -126,15 +145,15 @@ export function SetupPage({
                   id="clockify-workspace-id"
                   type="text"
                   value={clockifyWorkspaceId}
-                  onChange={(event) => setClockifyWorkspaceId(event.target.value)}
-                  className="h-12 rounded-none border-border bg-background/80 text-[15px] shadow-none"
+                  readOnly
+                  className="h-12 rounded-none border-border bg-muted/40 text-[15px] text-muted-foreground shadow-none"
                 />
               </div>
             </div>
 
             <div className="flex items-start gap-2 border border-border/80 bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
               <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <p>Stored per user. The workspace id is prefilled for your shared company workspace.</p>
+              <p>Stored per user. The workspace id is fixed to your shared company workspace.</p>
             </div>
 
             {error ? (

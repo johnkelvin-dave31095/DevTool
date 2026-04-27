@@ -115,6 +115,13 @@ export type LoginResponse = {
   clockifyWorkspaceId?: string | null;
 };
 
+export type ChangePasswordResponse = {
+  action: "changePassword";
+  changed: boolean;
+  userId?: string;
+  email?: string;
+};
+
 export type OutlookMappingRule = {
   id: string;
   userId?: string | null;

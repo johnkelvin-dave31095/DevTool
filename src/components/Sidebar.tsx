@@ -6,6 +6,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
+import toolMark from "../assets/tool.svg";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 
@@ -25,9 +26,11 @@ export function Sidebar({
   return (
     <aside className="sticky top-0 hidden h-screen border-r border-border/80 bg-card/95 backdrop-blur lg:flex lg:flex-col">
       <div className="flex items-center gap-3 border-b px-5 py-5">
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7f68a5,#4f3c5d)] text-sm font-semibold tracking-[0.18em] text-[hsl(var(--primary-foreground))] shadow-[0_12px_24px_rgba(40,24,52,0.28)]">
-          DEV
-        </div>
+        <img
+          src={toolMark}
+          alt="Oaktech DevTool"
+          className="h-11 w-11 rounded-xl object-cover"
+        />
         <div className="min-w-0 leading-tight">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Oaktech

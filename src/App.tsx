@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import {
   ArrowRightLeft,
   Blocks,
+  CheckCircle2,
   KeyRound,
   Settings2,
   SlidersHorizontal,
+  TriangleAlert,
   User2,
   X,
 } from "lucide-react";
@@ -13,13 +15,18 @@ import { Footer } from "./components/Footer";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
 import { AsanaPage } from "./pages/AsanaPage";
+import { AsciiLogoLoginPage } from "./pages/AsciiLogoLoginPage";
 import { IntegrationPage } from "./pages/IntegrationPage";
 import { LoginPage } from "./pages/LoginPage";
+import { NewLoginPage } from "./pages/NewLoginPage";
 import { PreloadRulesPage } from "./pages/PreloadRulesPage";
 import { SetupPage } from "./pages/SetupPage";
 import {
   ApiError,
+  ChangePasswordResponse,
   INTEGRATION_SETUP_URL,
   LoginResponse,
   SetupSaveResponse,
@@ -29,17 +36,64 @@ import {
 
 type AppModule = "outlook" | "asana" | "rules";
 type AppTheme = "purple" | "light";
+type LoginVariant = "classic" | "newlogin" | "newlogin-ascii";
+type AppToast = {
+  title: string;
+  detail?: string;
+  tone: "success" | "warning";
+};
 
 const THEME_STORAGE_KEY = "devtool-theme";
 
 function getStoredTheme(): AppTheme {
   if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (storedTheme === "purple") {
     return "purple";
   }
 
-  return window.localStorage.getItem(THEME_STORAGE_KEY) === "light"
-    ? "light"
-    : "purple";
+  return "light";
+}
+
+function getLoginVariant(): LoginVariant {
+  if (typeof window === "undefined") {
+    return "newlogin-ascii";
+  }
+
+  const path = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  const view = new URLSearchParams(window.location.search).get("view")?.toLowerCase();
+
+  if (
+    path === "/login" ||
+    path === "/login-classic" ||
+    path === "/login-original" ||
+    hash === "#/login" ||
+    hash === "#/login-classic" ||
+    hash === "#/login-original" ||
+    view === "login" ||
+    view === "login-classic" ||
+    view === "login-original"
+  ) {
+    return "classic";
+  }
+
+  if (
+    path === "/newlogin-ascii" ||
+    hash === "#/newlogin-ascii" ||
+    view === "newlogin-ascii"
+  ) {
+    return "newlogin-ascii";
+  }
+
+  if (path === "/newlogin" || hash === "#/newlogin" || view === "newlogin") {
+    return "newlogin";
+  }
+
+  return "newlogin-ascii";
 }
 
 export default function App() {
@@ -70,6 +124,16 @@ export default function App() {
   } | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [isSavingSetup, setIsSavingSetup] = useState(false);
+  const [loginVariant] = useState<LoginVariant>(() => getLoginVariant());
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    repeatNewPassword: "",
+  });
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [toast, setToast] = useState<AppToast | null>(null);
 
   useEffect(() => {
     setIsAuthenticated(window.sessionStorage.getItem("devtool-auth") === "true");
@@ -219,6 +283,15 @@ export default function App() {
     setSetupError(null);
     setIsLoggingIn(false);
     setIsSavingSetup(false);
+    setIsPasswordModalOpen(false);
+    setPasswordForm({
+      currentPassword: "",
+      newPassword: "",
+      repeatNewPassword: "",
+    });
+    setPasswordError(null);
+    setIsChangingPassword(false);
+    setToast(null);
   }
 
   function handleOpenSetupEditor() {
@@ -234,6 +307,7 @@ export default function App() {
 
   async function handleSetupSave(payload: {
     clockifyApiKey: string;
+    asanaApiKey: string;
     clockifyWorkspaceId: string;
   }) {
     setSetupError(null);
@@ -246,12 +320,14 @@ export default function App() {
           action: "save";
           email: string;
           clockifyApiKey: string;
+          asanaApiKey: string;
           clockifyWorkspaceId: string;
         }
       >(INTEGRATION_SETUP_URL, {
         action: "save",
         email: currentEmail,
         clockifyApiKey: payload.clockifyApiKey,
+        asanaApiKey: payload.asanaApiKey,
         clockifyWorkspaceId: payload.clockifyWorkspaceId,
       });
 
@@ -273,9 +349,123 @@ export default function App() {
     setIsSettingsOpen(true);
   }
 
+  function handleOpenPasswordModal() {
+    setPasswordForm({
+      currentPassword: "",
+      newPassword: "",
+      repeatNewPassword: "",
+    });
+    setPasswordError(null);
+    setIsPasswordModalOpen(true);
+  }
+
+  function handleClosePasswordModal() {
+    setIsPasswordModalOpen(false);
+    setPasswordError(null);
+    setPasswordForm({
+      currentPassword: "",
+      newPassword: "",
+      repeatNewPassword: "",
+    });
+  }
+
+  async function handleChangePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordError(null);
+
+    const currentPassword = passwordForm.currentPassword.trim();
+    const newPassword = passwordForm.newPassword.trim();
+    const repeatNewPassword = passwordForm.repeatNewPassword.trim();
+
+    if (!currentPassword) {
+      setPasswordError("Enter your latest password.");
+      return;
+    }
+
+    if (!newPassword) {
+      setPasswordError("Enter a new password.");
+      return;
+    }
+
+    if (newPassword !== repeatNewPassword) {
+      setPasswordError("New password fields do not match.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      await postJson<
+        ChangePasswordResponse,
+        {
+          action: "changePassword";
+          email: string;
+          currentPassword: string;
+          newPassword: string;
+        }
+      >(INTEGRATION_SETUP_URL, {
+        action: "changePassword",
+        email: currentEmail,
+        currentPassword,
+        newPassword,
+      });
+
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        repeatNewPassword: "",
+      });
+      setIsPasswordModalOpen(false);
+      setToast({
+        title: "Password updated",
+        tone: "success",
+      });
+    } catch (exc) {
+      setPasswordError(getSetupError(exc));
+    } finally {
+      setIsChangingPassword(false);
+    }
+  }
+
   if (!isAuthenticated) {
+    if (loginVariant === "newlogin-ascii") {
+      return (
+        <AsciiLogoLoginPage
+          onLogin={handleLogin}
+          isLoggingIn={isLoggingIn}
+          isLaunching={isLoginLaunching}
+          error={loginError}
+          onLaunchComplete={handleLoginLaunchComplete}
+        />
+      );
+    }
+
+    if (loginVariant === "newlogin") {
+      return (
+        <NewLoginPage
+          onLogin={handleLogin}
+          isLoggingIn={isLoggingIn}
+          isLaunching={isLoginLaunching}
+          error={loginError}
+          onLaunchComplete={handleLoginLaunchComplete}
+        />
+      );
+    }
+
+    if (loginVariant === "classic") {
+      return (
+        <LoginPage
+          onLogin={handleLogin}
+          isLoggingIn={isLoggingIn}
+          isLaunching={isLoginLaunching}
+          error={loginError}
+          onLaunchComplete={handleLoginLaunchComplete}
+        />
+      );
+    }
+
     return (
-      <LoginPage
+      <AsciiLogoLoginPage
         onLogin={handleLogin}
         isLoggingIn={isLoggingIn}
         isLaunching={isLoginLaunching}
@@ -385,6 +575,167 @@ export default function App() {
                 actionLabel="Open"
                 onClick={handleOpenSetupEditor}
               />
+              <SettingsMenuItem
+                icon={<KeyRound className="h-4 w-4" />}
+                title="Change password"
+                detail="Update your account password"
+                actionLabel="Open"
+                onClick={handleOpenPasswordModal}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {isPasswordModalOpen ? (
+        <div className="settings-scrim fixed inset-0 z-[60] flex items-center justify-center p-6 backdrop-blur-sm">
+          <div className="w-full max-w-md border border-border/80 bg-card shadow-[0_24px_60px_rgba(18,12,24,0.42)]">
+            <div className="flex items-center justify-between border-b border-border/80 px-6 py-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                  Account
+                </p>
+                <h2 className="mt-1 font-studio text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                  Change password
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border/80 text-muted-foreground transition-colors hover:text-foreground"
+                onClick={handleClosePasswordModal}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form className="space-y-5 p-6" onSubmit={handleChangePassword}>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="settings-current-password"
+                  className="text-[11px] uppercase tracking-[0.24em] text-primary"
+                >
+                  Latest password
+                </Label>
+                <Input
+                  id="settings-current-password"
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(event) =>
+                    setPasswordForm((current) => ({
+                      ...current,
+                      currentPassword: event.target.value,
+                    }))
+                  }
+                  className="h-12 rounded-none border-border bg-background/80 text-[15px] shadow-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="settings-new-password"
+                  className="text-[11px] uppercase tracking-[0.24em] text-primary"
+                >
+                  New password
+                </Label>
+                <Input
+                  id="settings-new-password"
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(event) =>
+                    setPasswordForm((current) => ({
+                      ...current,
+                      newPassword: event.target.value,
+                    }))
+                  }
+                  className="h-12 rounded-none border-border bg-background/80 text-[15px] shadow-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="settings-repeat-new-password"
+                  className="text-[11px] uppercase tracking-[0.24em] text-primary"
+                >
+                  Repeat new password
+                </Label>
+                <Input
+                  id="settings-repeat-new-password"
+                  type="password"
+                  value={passwordForm.repeatNewPassword}
+                  onChange={(event) =>
+                    setPasswordForm((current) => ({
+                      ...current,
+                      repeatNewPassword: event.target.value,
+                    }))
+                  }
+                  className="h-12 rounded-none border-border bg-background/80 text-[15px] shadow-none"
+                />
+              </div>
+
+              {passwordError ? (
+                <div className="border border-[rgba(240,119,93,0.20)] bg-[rgba(240,119,93,0.08)] px-4 py-3 text-sm text-accent">
+                  {passwordError}
+                </div>
+              ) : null}
+
+              <div className="flex items-center justify-end gap-3 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full px-4"
+                  onClick={handleClosePasswordModal}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="rounded-full px-5"
+                >
+                  {isChangingPassword ? "Saving" : "Save"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+      {toast ? (
+        <div className="fixed bottom-5 right-5 z-[70] w-full max-w-sm">
+          <div
+            className={[
+              "border bg-card p-4 shadow-[0_22px_48px_rgba(18,12,24,0.42)]",
+              toast.tone === "success"
+                ? "border-primary/24"
+                : "border-[rgba(240,119,93,0.22)]",
+            ].join(" ")}
+          >
+            <div className="flex items-start gap-3">
+              <span
+                className={[
+                  "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                  toast.tone === "success"
+                    ? "bg-primary/10 text-primary"
+                    : "bg-accent/10 text-accent",
+                ].join(" ")}
+              >
+                {toast.tone === "success" ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <TriangleAlert className="h-4 w-4" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-foreground">{toast.title}</p>
+                {toast.detail ? (
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {toast.detail}
+                  </p>
+                ) : null}
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-8 w-8 rounded-full p-0"
+                onClick={() => setToast(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </div>
