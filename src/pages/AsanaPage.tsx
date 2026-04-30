@@ -19,7 +19,7 @@ import {
 } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Select } from "../components/ui/select";
+import { SearchSelect } from "../components/ui/search-select";
 import {
   ApiError,
   ASANA_TICKETS_URL,
@@ -800,36 +800,43 @@ function ReviewTableRow({
         </div>
       </td>
       <td className="border-l border-border/70 px-3 py-2">
-        <Select
+        <SearchSelect
           value={row.projectId}
-          onChange={(event) => onProjectChange(event.target.value)}
+          onChange={onProjectChange}
           disabled={!row.include}
-          className="h-9 w-full rounded-none border-border bg-background/80 shadow-none"
-        >
-          <option value="">Select project</option>
-          {projects.map((project) => (
-            <option key={project.projectId} value={project.projectId}>
-              {project.projectName}
-            </option>
-          ))}
-        </Select>
+          placeholder="Select project"
+          searchPlaceholder="Search projects..."
+          emptyResultsLabel="No projects found."
+          options={[
+            { value: "", label: "Select project" },
+            ...projects.map((project) => ({
+              value: project.projectId,
+              label: project.projectName,
+            })),
+          ]}
+        />
       </td>
       <td className="border-l border-border/70 px-3 py-2">
-        <Select
+        <SearchSelect
           value={row.taskId}
-          onChange={(event) => onTaskChange(event.target.value)}
+          onChange={onTaskChange}
           disabled={!row.include || !row.projectId}
-          className="h-9 w-full rounded-none border-border bg-background/80 shadow-none"
-        >
-          <option value="">
-            {row.projectId ? "Manual / None" : "Pick project first"}
-          </option>
-          {availableTasks.map((task) => (
-            <option key={task.taskId} value={task.taskId}>
-              {task.taskName}
-            </option>
-          ))}
-        </Select>
+          placeholder={row.projectId ? "Manual / None" : "Pick project first"}
+          searchPlaceholder="Search tasks..."
+          emptyResultsLabel={
+            row.projectId ? "No tasks found." : "Pick a project first."
+          }
+          options={[
+            {
+              value: "",
+              label: row.projectId ? "Manual / None" : "Pick project first",
+            },
+            ...availableTasks.map((task) => ({
+              value: task.taskId,
+              label: task.taskName,
+            })),
+          ]}
+        />
       </td>
       <td className="border-l border-border/70 px-3 py-2">
         <Input
