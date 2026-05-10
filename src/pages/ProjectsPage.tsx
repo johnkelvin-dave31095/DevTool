@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -45,6 +45,7 @@ type KvpRecord = {
 type ProjectSummary = {
   project_id: number;
   project_name: string | null;
+  is_active?: boolean | null;
   ghl_sub_account_name: string | null;
   clockify_project_name: string | null;
   asana_project_name: string | null;
@@ -72,6 +73,7 @@ type DomainRecord = {
   domain_type_kvp_id: number | null;
   domain_name: string | null;
   expiration_date: string | null;
+  description: string | null;
 };
 
 type EmailRecord = {
@@ -89,6 +91,7 @@ type PhoneRecord = {
   agent_name: string | null;
   agent_gender_kvp_id?: number | null;
   agent_tone_kvp_id: number | null;
+  description: string | null;
 };
 
 type ResourceRecord = {
@@ -102,6 +105,8 @@ type ResourceRecord = {
 type ProjectRecord = {
   project_id: number;
   project_name: string | null;
+  is_active: boolean | null;
+  notes_html: string | null;
   ghl_sub_account_name: string | null;
   clockify_project_name: string | null;
   asana_project_name: string | null;
@@ -114,8 +119,6 @@ type ProjectRecord = {
   assigned_sdr: string | null;
   principal_point_of_contact: string | null;
   is_principal_eo_ypo_member: boolean | null;
-  ghl_phone_number: string | null;
-  telvana_phone_number: string | null;
   project_types?: ProjectTypeRecord[];
   domains?: DomainRecord[];
   emails?: EmailRecord[];
@@ -135,6 +138,7 @@ type DomainFormRow = {
   domain_type_kvp_id: string;
   domain_name: string;
   expiration_date: string;
+  description: string;
 };
 
 type EmailFormRow = {
@@ -154,6 +158,7 @@ type PhoneFormRow = {
   agent_name: string;
   agent_gender_kvp_id: string;
   agent_tone_kvp_id: string;
+  description: string;
 };
 
 type ResourceFormRow = {
@@ -167,6 +172,7 @@ type ResourceFormRow = {
 
 type ProjectFormState = {
   project_name: string;
+  project_status: "active" | "inactive";
   ghl_sub_account_name: string;
   clockify_project_name: string;
   asana_project_name: string;
@@ -179,24 +185,30 @@ type ProjectFormState = {
   assigned_sdr: string;
   principal_point_of_contact: string;
   is_principal_eo_ypo_member: boolean;
-  ghl_phone_number: string;
-  telvana_phone_number: string;
   project_types: ProjectTypeFormRow[];
   domains: DomainFormRow[];
   emails: EmailFormRow[];
   phones: PhoneFormRow[];
   resources: ResourceFormRow[];
+  notes_html: string;
 };
 
 type DetailMode = "create" | "view";
-type ActiveTab = "project" | "technical";
+type ActiveTab = "project" | "technical" | "notes";
 type AppMessage = {
   tone: "success" | "warning";
   text: string;
 };
+type TechnicalTextModalState = {
+  section: "phones" | "domains" | "emails" | "resources";
+  localId: string;
+  field: "description" | "other_details";
+  title: string;
+};
 
 const EMPTY_FORM = (): ProjectFormState => ({
   project_name: "",
+  project_status: "active",
   ghl_sub_account_name: "",
   clockify_project_name: "",
   asana_project_name: "",
@@ -209,19 +221,25 @@ const EMPTY_FORM = (): ProjectFormState => ({
   assigned_sdr: "",
   principal_point_of_contact: "",
   is_principal_eo_ypo_member: false,
-  ghl_phone_number: "",
-  telvana_phone_number: "",
   project_types: [],
   domains: [],
   emails: [],
   phones: [],
   resources: [],
+  notes_html: "",
 });
 
 const trackerInputClass =
   "h-11 rounded-none border-border bg-white text-black placeholder:text-black/35 shadow-none read-only:text-black read-only:opacity-100";
+const compactTrackerInputClass =
+  "h-10 rounded-none border-border bg-white px-3 text-sm text-black placeholder:text-black/35 shadow-none read-only:text-black read-only:opacity-100";
+const compactSelectClass =
+  "h-10 rounded-none border-border bg-background/80 px-3 text-sm text-black shadow-none";
+const compactTextareaClass =
+  "h-10 min-h-[40px] w-full resize-none overflow-hidden rounded-none border border-border bg-white px-3 py-2 text-sm leading-5 text-black shadow-none outline-none transition-colors focus:border-primary/40 read-only:opacity-100";
 
 export function ProjectsPage() {
+  const notesEditorRef = useRef<HTMLDivElement | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [lookups, setLookups] = useState<KvpRecord[]>([]);
   const [completeness, setCompleteness] = useState<ProjectCompleteness[]>([]);
@@ -242,10 +260,22 @@ export function ProjectsPage() {
   const [isOpeningProject, setIsOpeningProject] = useState(false);
   const [message, setMessage] = useState<AppMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTechnicalTextModal, setActiveTechnicalTextModal] =
+    useState<TechnicalTextModalState | null>(null);
 
   useEffect(() => {
     void initializePage();
   }, []);
+
+  useEffect(() => {
+    if (!notesEditorRef.current) {
+      return;
+    }
+
+    if (notesEditorRef.current.innerHTML !== form.notes_html) {
+      notesEditorRef.current.innerHTML = form.notes_html;
+    }
+  }, [form.notes_html, activeTab, viewMode]);
 
   const completenessById = useMemo(
     () => new Map(completeness.map((item) => [item.project_id, item])),
@@ -450,6 +480,7 @@ export function ProjectsPage() {
           domain_type_kvp_id: toOptionalNumber(row.domain_type_kvp_id),
           domain_name: row.domain_name.trim() || null,
           expiration_date: row.expiration_date.trim() || null,
+          description: row.description.trim() || null,
         }),
       });
       await syncChildRows(projectId, savedSnapshot.emails, form.emails, {
@@ -475,6 +506,7 @@ export function ProjectsPage() {
           agent_name: row.agent_name.trim() || null,
           agent_gender_kvp_id: toOptionalNumber(row.agent_gender_kvp_id),
           agent_tone_kvp_id: toOptionalNumber(row.agent_tone_kvp_id),
+          description: row.description.trim() || null,
         }),
       });
       await syncChildRows(projectId, savedSnapshot.resources, form.resources, {
@@ -696,6 +728,30 @@ export function ProjectsPage() {
     ? "Create Project"
     : form.project_name.trim() || "Project Details";
 
+  const activeTechnicalTextValue = activeTechnicalTextModal
+    ? getTechnicalTextValue(form, activeTechnicalTextModal)
+    : "";
+
+  function applyNotesCommand(command: string) {
+    notesEditorRef.current?.focus();
+    document.execCommand(command, false);
+    updateForm("notes_html", notesEditorRef.current?.innerHTML ?? "");
+  }
+
+  function openTechnicalTextModal(
+    section: TechnicalTextModalState["section"],
+    localId: string,
+    field: TechnicalTextModalState["field"],
+    title: string,
+  ) {
+    setActiveTechnicalTextModal({
+      section,
+      localId,
+      field,
+      title,
+    });
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       {error ? <PageAlert tone="warning" text={error} /> : null}
@@ -844,15 +900,13 @@ export function ProjectsPage() {
                             <td className="border-l border-border/70 px-4 py-3">
                               <Badge
                                 variant={
-                                  projectCompleteness?.is_complete
-                                    ? "default"
-                                    : "secondary"
+                                  project.is_active === false
+                                    ? "secondary"
+                                    : "default"
                                 }
                                 className="rounded-none px-2"
                               >
-                                {projectCompleteness?.is_complete
-                                  ? "Complete"
-                                  : "In Progress"}
+                                {project.is_active === false ? "Not Active" : "Active"}
                               </Badge>
                             </td>
                           </tr>
@@ -899,7 +953,7 @@ export function ProjectsPage() {
                     {pageTitle}
                   </CardTitle>
                   <CardDescription className="mt-2 max-w-2xl">
-                    Review the record in two parts: project details and technical details.
+                    Review the record across project details, technical details, and notes.
                   </CardDescription>
                 </div>
 
@@ -965,6 +1019,14 @@ export function ProjectsPage() {
                   >
                     Technical Details
                   </TabButton>
+                  <TabButton
+                    isActive={activeTab === "notes"}
+                    onClick={() => setActiveTab("notes")}
+                    controlsId="notes-panel"
+                    tabId="notes-tab"
+                  >
+                    Notes
+                  </TabButton>
                 </div>
               </div>
 
@@ -972,13 +1034,17 @@ export function ProjectsPage() {
                 id={
                   activeTab === "project"
                     ? "project-details-panel"
-                    : "technical-details-panel"
+                    : activeTab === "technical"
+                      ? "technical-details-panel"
+                      : "notes-panel"
                 }
                 role="tabpanel"
                 aria-labelledby={
                   activeTab === "project"
                     ? "project-details-tab"
-                    : "technical-details-tab"
+                    : activeTab === "technical"
+                      ? "technical-details-tab"
+                      : "notes-tab"
                 }
                 className="px-6 py-6"
               >
@@ -1121,6 +1187,31 @@ export function ProjectsPage() {
                           className={trackerInputClass}
                         />
                       </FieldBlock>
+                      <FieldBlock label="Project Status">
+                        {isFormEditable ? (
+                          <Select
+                            value={form.project_status}
+                            onChange={(event) =>
+                              updateForm(
+                                "project_status",
+                                event.target.value as "active" | "inactive",
+                              )
+                            }
+                            className="h-11 rounded-none border-border bg-white text-black shadow-none"
+                          >
+                            <option value="active">Active</option>
+                            <option value="inactive">Not Active</option>
+                          </Select>
+                        ) : (
+                          <ReadonlyFieldValue
+                            value={
+                              form.project_status === "active"
+                                ? "Active"
+                                : "Not Active"
+                            }
+                          />
+                        )}
+                      </FieldBlock>
                     </div>
 
                     <FieldBlock label="Is Principal EO/YPO Member?" labelClassName="text-black">
@@ -1193,11 +1284,11 @@ export function ProjectsPage() {
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="space-y-8">
+                ) : activeTab === "technical" ? (
+                  <div className="space-y-2">
                     <EditableTableSection
                       title="Phone Numbers"
-                      description="Track project phone numbers with phone type, agent name, gender, and tone."
+                      description="Track project phone numbers with phone type, agent name, gender, tone, and description."
                       addLabel="Add Phone"
                       disabled={!isFormEditable}
                       onAdd={() => addCollectionRow("phones")}
@@ -1205,134 +1296,159 @@ export function ProjectsPage() {
                       {form.phones.length === 0 ? (
                         <TableEmptyState text="No phone records added yet." />
                       ) : (
-                        <div className="space-y-4">
-                          {form.phones.map((row) => (
-                            <div
-                              key={row.localId}
-                              className="rounded-none border border-border/80 bg-background/50 p-4"
-                            >
-                              <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
-                                <FieldBlock label="Phone Type">
-                                  {isFormEditable ? (
-                                    <Select
-                                      value={row.phone_type_kvp_id}
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[980px] border-collapse text-sm">
+                            <thead className="bg-muted/35 text-left">
+                              <tr className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                                <th className="px-2 py-1.5 font-semibold">Type</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Phone Number</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Agent Name</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Gender</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Tone</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Description</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {form.phones.map((row) => (
+                                <tr key={row.localId} className="border-t border-border/70 align-top">
+                                  <td className="px-2 py-1.5">
+                                    {isFormEditable ? (
+                                      <Select
+                                        value={row.phone_type_kvp_id}
+                                        onChange={(event) =>
+                                          updateCollectionRow("phones", row.localId, {
+                                            phone_type_kvp_id: event.target.value,
+                                          })
+                                        }
+                                        className={compactSelectClass}
+                                      >
+                                        <option value="">Select type</option>
+                                        {phoneTypeOptions.map((option) => (
+                                          <option key={option.value} value={option.value}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    ) : (
+                                      <ReadonlyFieldValue
+                                        value={getLookupLabel(phoneTypeOptions, row.phone_type_kvp_id)}
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    <Input
+                                      value={row.phone_number}
                                       onChange={(event) =>
                                         updateCollectionRow("phones", row.localId, {
-                                          phone_type_kvp_id: event.target.value,
+                                          phone_number: event.target.value,
                                         })
                                       }
-                                      className="h-10 rounded-none border-border bg-background/80 shadow-none"
-                                    >
-                                      <option value="">Select type</option>
-                                      {phoneTypeOptions.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </Select>
-                                  ) : (
-                                    <ReadonlyFieldValue
-                                      value={getLookupLabel(phoneTypeOptions, row.phone_type_kvp_id)}
+                                      readOnly={!isFormEditable}
+                                      className={compactTrackerInputClass}
                                     />
-                                  )}
-                                </FieldBlock>
-                                <FieldBlock label="Phone Number">
-                                  <Input
-                                    value={row.phone_number}
-                                    onChange={(event) =>
-                                      updateCollectionRow("phones", row.localId, {
-                                        phone_number: event.target.value,
-                                      })
-                                    }
-                                    readOnly={!isFormEditable}
-                                    className={trackerInputClass}
-                                  />
-                                </FieldBlock>
-                                <FieldBlock label="Agent Name">
-                                  <Input
-                                    value={row.agent_name}
-                                    onChange={(event) =>
-                                      updateCollectionRow("phones", row.localId, {
-                                        agent_name: event.target.value,
-                                      })
-                                    }
-                                    readOnly={!isFormEditable}
-                                    className={trackerInputClass}
-                                  />
-                                </FieldBlock>
-                                <FieldBlock label="Agent Gender">
-                                  {isFormEditable ? (
-                                    <Select
-                                      value={row.agent_gender_kvp_id}
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    <Input
+                                      value={row.agent_name}
                                       onChange={(event) =>
                                         updateCollectionRow("phones", row.localId, {
-                                          agent_gender_kvp_id: event.target.value,
+                                          agent_name: event.target.value,
                                         })
                                       }
-                                      className="h-10 rounded-none border-border bg-background/80 shadow-none"
-                                    >
-                                      <option value="">Select gender</option>
-                                      {agentGenderOptions.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </Select>
-                                  ) : (
-                                    <ReadonlyFieldValue
-                                      value={getLookupLabel(agentGenderOptions, row.agent_gender_kvp_id)}
+                                      readOnly={!isFormEditable}
+                                      className={compactTrackerInputClass}
                                     />
-                                  )}
-                                </FieldBlock>
-                                <FieldBlock label="Agent Tone">
-                                  {isFormEditable ? (
-                                    <Select
-                                      value={row.agent_tone_kvp_id}
-                                      onChange={(event) =>
-                                        updateCollectionRow("phones", row.localId, {
-                                          agent_tone_kvp_id: event.target.value,
-                                        })
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    {isFormEditable ? (
+                                      <Select
+                                        value={row.agent_gender_kvp_id}
+                                        onChange={(event) =>
+                                          updateCollectionRow("phones", row.localId, {
+                                            agent_gender_kvp_id: event.target.value,
+                                          })
+                                        }
+                                        className={compactSelectClass}
+                                      >
+                                        <option value="">Select gender</option>
+                                        {agentGenderOptions.map((option) => (
+                                          <option key={option.value} value={option.value}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    ) : (
+                                      <ReadonlyFieldValue
+                                        value={getLookupLabel(agentGenderOptions, row.agent_gender_kvp_id)}
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    {isFormEditable ? (
+                                      <Select
+                                        value={row.agent_tone_kvp_id}
+                                        onChange={(event) =>
+                                          updateCollectionRow("phones", row.localId, {
+                                            agent_tone_kvp_id: event.target.value,
+                                          })
+                                        }
+                                        className={compactSelectClass}
+                                      >
+                                        <option value="">Select tone</option>
+                                        {agentToneOptions.map((option) => (
+                                          <option key={option.value} value={option.value}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    ) : (
+                                      <ReadonlyFieldValue
+                                        value={getLookupLabel(agentToneOptions, row.agent_tone_kvp_id)}
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    <TechnicalTextCell
+                                      value={row.description}
+                                      placeholder="Open description"
+                                      onClick={() =>
+                                        openTechnicalTextModal(
+                                          "phones",
+                                          row.localId,
+                                          "description",
+                                          "Phone Description",
+                                        )
                                       }
-                                      className="h-10 rounded-none border-border bg-background/80 shadow-none"
-                                    >
-                                      <option value="">Select tone</option>
-                                      {agentToneOptions.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </Select>
-                                  ) : (
-                                    <ReadonlyFieldValue
-                                      value={getLookupLabel(agentToneOptions, row.agent_tone_kvp_id)}
                                     />
-                                  )}
-                                </FieldBlock>
-                              </div>
-
-                              {isFormEditable ? (
-                                <div className="mt-4 flex justify-end">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="rounded-full px-4"
-                                    onClick={() =>
-                                      removeCollectionRow("phones", row.localId)
-                                    }
-                                  >
-                                    Remove
-                                  </Button>
-                                </div>
-                              ) : null}
-                            </div>
-                          ))}
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    {isFormEditable ? (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-9 rounded-none px-3 text-sm"
+                                        onClick={() =>
+                                          removeCollectionRow("phones", row.localId)
+                                        }
+                                      >
+                                        Remove
+                                      </Button>
+                                    ) : (
+                                      <span className="text-sm text-black">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       )}
                     </EditableTableSection>
 
                     <EditableTableSection
                       title="Domains"
-                      description="Store multiple domains with type, name, and expiration date."
+                      description="Store multiple domains with type, name, expiration date, and description."
                       addLabel="Add Domain"
                       disabled={!isFormEditable}
                       onAdd={() => addCollectionRow("domains")}
@@ -1341,17 +1457,20 @@ export function ProjectsPage() {
                         <TableEmptyState text="No domains added yet." />
                       ) : (
                         <div className="overflow-x-auto">
-                          <table className="w-full min-w-[780px] border-collapse text-sm">
+                          <table className="w-full min-w-[900px] border-collapse text-sm">
                             <thead className="bg-muted/35 text-left">
                               <tr className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                                <th className="px-4 py-3 font-semibold">Domain Type</th>
-                                <th className="border-l border-border/70 px-4 py-3 font-semibold">
+                                <th className="px-2 py-1.5 font-semibold">Domain Type</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">
                                   Domain Name
                                 </th>
-                                <th className="border-l border-border/70 px-4 py-3 font-semibold">
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">
                                   Expiration Date
                                 </th>
-                                <th className="border-l border-border/70 px-4 py-3 font-semibold">
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">
+                                  Domain Description
+                                </th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">
                                   Action
                                 </th>
                               </tr>
@@ -1359,7 +1478,7 @@ export function ProjectsPage() {
                             <tbody>
                               {form.domains.map((row) => (
                                 <tr key={row.localId} className="border-t border-border/70">
-                                  <td className="px-4 py-3">
+                                  <td className="px-2 py-1.5">
                                     {isFormEditable ? (
                                       <Select
                                         value={row.domain_type_kvp_id}
@@ -1368,7 +1487,7 @@ export function ProjectsPage() {
                                             domain_type_kvp_id: event.target.value,
                                           })
                                         }
-                                        className="h-10 rounded-none border-border bg-background/80 shadow-none"
+                                        className={compactSelectClass}
                                       >
                                         <option value="">Select type</option>
                                         {domainTypeOptions.map((option) => (
@@ -1383,7 +1502,7 @@ export function ProjectsPage() {
                                       />
                                     )}
                                   </td>
-                                  <td className="border-l border-border/70 px-4 py-3">
+                                  <td className="border-l border-border/70 px-2 py-1.5">
                                     <Input
                                       value={row.domain_name}
                                       onChange={(event) =>
@@ -1392,10 +1511,10 @@ export function ProjectsPage() {
                                         })
                                       }
                                       readOnly={!isFormEditable}
-                                      className={trackerInputClass}
+                                      className={compactTrackerInputClass}
                                     />
                                   </td>
-                                  <td className="border-l border-border/70 px-4 py-3">
+                                  <td className="border-l border-border/70 px-2 py-1.5">
                                     <Input
                                       type="date"
                                       value={row.expiration_date}
@@ -1410,15 +1529,29 @@ export function ProjectsPage() {
                                           ? (event) => event.preventDefault()
                                           : undefined
                                       }
-                                      className={trackerInputClass}
+                                      className={compactTrackerInputClass}
                                     />
                                   </td>
-                                  <td className="border-l border-border/70 px-4 py-3">
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    <TechnicalTextCell
+                                      value={row.description}
+                                      placeholder="Open description"
+                                      onClick={() =>
+                                        openTechnicalTextModal(
+                                          "domains",
+                                          row.localId,
+                                          "description",
+                                          "Domain Description",
+                                        )
+                                      }
+                                    />
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
                                     {isFormEditable ? (
                                       <Button
                                         type="button"
                                         variant="outline"
-                                        className="rounded-full px-4"
+                                        className="h-9 rounded-none px-3 text-sm"
                                         onClick={() =>
                                           removeCollectionRow("domains", row.localId)
                                         }
@@ -1447,92 +1580,102 @@ export function ProjectsPage() {
                       {form.emails.length === 0 ? (
                         <TableEmptyState text="No email records added yet." />
                       ) : (
-                        <div className="space-y-4">
-                          {form.emails.map((row) => (
-                            <div
-                              key={row.localId}
-                              className="rounded-none border border-border/80 bg-background/50 p-4"
-                            >
-                              <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-                                <FieldBlock label="Email Address">
-                                  <Input
-                                    value={row.email_address}
-                                    onChange={(event) =>
-                                      updateCollectionRow("emails", row.localId, {
-                                        email_address: event.target.value,
-                                      })
-                                    }
-                                    readOnly={!isFormEditable}
-                                    className={trackerInputClass}
-                                  />
-                                </FieldBlock>
-                                <FieldBlock label="Email Provider">
-                                  {isFormEditable ? (
-                                    <Select
-                                      value={row.email_provider_kvp_id}
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[920px] border-collapse text-sm">
+                            <thead className="bg-muted/35 text-left">
+                              <tr className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                                <th className="px-2 py-1.5 font-semibold">Email Address</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Provider</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Password</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Other Details</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {form.emails.map((row) => (
+                                <tr key={row.localId} className="border-t border-border/70 align-top">
+                                  <td className="px-2 py-1.5">
+                                    <Input
+                                      value={row.email_address}
                                       onChange={(event) =>
                                         updateCollectionRow("emails", row.localId, {
-                                          email_provider_kvp_id: event.target.value,
+                                          email_address: event.target.value,
                                         })
                                       }
-                                      className="h-10 rounded-none border-border bg-background/80 shadow-none"
-                                    >
-                                      <option value="">Select provider</option>
-                                      {emailProviderOptions.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </Select>
-                                  ) : (
-                                    <ReadonlyFieldValue
-                                      value={getLookupLabel(emailProviderOptions, row.email_provider_kvp_id)}
+                                      readOnly={!isFormEditable}
+                                      className={compactTrackerInputClass}
                                     />
-                                  )}
-                                </FieldBlock>
-                                <FieldBlock label="Password">
-                                  <Input
-                                    value={row.password}
-                                    onChange={(event) =>
-                                      updateCollectionRow("emails", row.localId, {
-                                        password: event.target.value,
-                                      })
-                                    }
-                                    readOnly={!isFormEditable}
-                                    className={trackerInputClass}
-                                  />
-                                </FieldBlock>
-                                {isFormEditable ? (
-                                  <div className="flex items-end justify-start">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      className="rounded-full px-4"
-                                      onClick={() =>
-                                        removeCollectionRow("emails", row.localId)
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    {isFormEditable ? (
+                                      <Select
+                                        value={row.email_provider_kvp_id}
+                                        onChange={(event) =>
+                                          updateCollectionRow("emails", row.localId, {
+                                            email_provider_kvp_id: event.target.value,
+                                          })
+                                        }
+                                        className={compactSelectClass}
+                                      >
+                                        <option value="">Select provider</option>
+                                        {emailProviderOptions.map((option) => (
+                                          <option key={option.value} value={option.value}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    ) : (
+                                      <ReadonlyFieldValue
+                                        value={getLookupLabel(emailProviderOptions, row.email_provider_kvp_id)}
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    <Input
+                                      value={row.password}
+                                      onChange={(event) =>
+                                        updateCollectionRow("emails", row.localId, {
+                                          password: event.target.value,
+                                        })
                                       }
-                                    >
-                                      Remove
-                                    </Button>
-                                  </div>
-                                ) : null}
-                              </div>
-
-                              <FieldBlock label="Other Details" className="mt-4">
-                                <textarea
-                                  value={row.other_details}
-                                  onChange={(event) =>
-                                    updateCollectionRow("emails", row.localId, {
-                                      other_details: event.target.value,
-                                    })
-                                  }
-                                  readOnly={!isFormEditable}
-                                  rows={4}
-                                  className="w-full rounded-none border border-border bg-white px-3 py-2 text-sm text-black shadow-none outline-none transition-colors focus:border-primary/40 read-only:opacity-100"
-                                />
-                              </FieldBlock>
-                            </div>
-                          ))}
+                                      readOnly={!isFormEditable}
+                                      className={compactTrackerInputClass}
+                                    />
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    <TechnicalTextCell
+                                      value={row.other_details}
+                                      placeholder="Open details"
+                                      onClick={() =>
+                                        openTechnicalTextModal(
+                                          "emails",
+                                          row.localId,
+                                          "other_details",
+                                          "Other Details",
+                                        )
+                                      }
+                                    />
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    {isFormEditable ? (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-9 rounded-none px-3 text-sm"
+                                        onClick={() =>
+                                          removeCollectionRow("emails", row.localId)
+                                        }
+                                      >
+                                        Remove
+                                      </Button>
+                                    ) : (
+                                      <span className="text-sm text-black">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       )}
                     </EditableTableSection>
@@ -1547,95 +1690,183 @@ export function ProjectsPage() {
                       {form.resources.length === 0 ? (
                         <TableEmptyState text="No resources added yet." />
                       ) : (
-                        <div className="space-y-4">
-                          {form.resources.map((row) => (
-                            <div
-                              key={row.localId}
-                              className="rounded-none border border-border/80 bg-background/50 p-4"
-                            >
-                              <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-                                <FieldBlock label="Resource Type">
-                                  {isFormEditable ? (
-                                    <Select
-                                      value={row.resource_type_kvp_id}
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[940px] border-collapse text-sm">
+                            <thead className="bg-muted/35 text-left">
+                              <tr className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                                <th className="px-2 py-1.5 font-semibold">Type</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Name</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Link</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Description</th>
+                                <th className="border-l border-border/70 px-2 py-1.5 font-semibold">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {form.resources.map((row) => (
+                                <tr key={row.localId} className="border-t border-border/70 align-top">
+                                  <td className="px-2 py-1.5">
+                                    {isFormEditable ? (
+                                      <Select
+                                        value={row.resource_type_kvp_id}
+                                        onChange={(event) =>
+                                          updateCollectionRow("resources", row.localId, {
+                                            resource_type_kvp_id: event.target.value,
+                                          })
+                                        }
+                                        className={compactSelectClass}
+                                      >
+                                        <option value="">Select type</option>
+                                        {resourceTypeOptions.map((option) => (
+                                          <option key={option.value} value={option.value}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    ) : (
+                                      <ReadonlyFieldValue
+                                        value={getLookupLabel(resourceTypeOptions, row.resource_type_kvp_id)}
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    <Input
+                                      value={row.name}
                                       onChange={(event) =>
                                         updateCollectionRow("resources", row.localId, {
-                                          resource_type_kvp_id: event.target.value,
+                                          name: event.target.value,
                                         })
                                       }
-                                      className="h-10 rounded-none border-border bg-background/80 shadow-none"
-                                    >
-                                      <option value="">Select type</option>
-                                      {resourceTypeOptions.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                          {option.label}
-                                        </option>
-                                      ))}
-                                    </Select>
-                                  ) : (
-                                    <ReadonlyFieldValue
-                                      value={getLookupLabel(resourceTypeOptions, row.resource_type_kvp_id)}
+                                      readOnly={!isFormEditable}
+                                      className={compactTrackerInputClass}
                                     />
-                                  )}
-                                </FieldBlock>
-                                <FieldBlock label="Name">
-                                  <Input
-                                    value={row.name}
-                                    onChange={(event) =>
-                                      updateCollectionRow("resources", row.localId, {
-                                        name: event.target.value,
-                                      })
-                                    }
-                                    readOnly={!isFormEditable}
-                                    className={trackerInputClass}
-                                  />
-                                </FieldBlock>
-                                <FieldBlock label="Link">
-                                  <Input
-                                    value={row.link}
-                                    onChange={(event) =>
-                                      updateCollectionRow("resources", row.localId, {
-                                        link: event.target.value,
-                                      })
-                                    }
-                                    readOnly={!isFormEditable}
-                                    className={trackerInputClass}
-                                  />
-                                </FieldBlock>
-                                {isFormEditable ? (
-                                  <div className="flex items-end justify-start">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      className="rounded-full px-4"
-                                      onClick={() =>
-                                        removeCollectionRow("resources", row.localId)
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    <Input
+                                      value={row.link}
+                                      onChange={(event) =>
+                                        updateCollectionRow("resources", row.localId, {
+                                          link: event.target.value,
+                                        })
                                       }
-                                    >
-                                      Remove
-                                    </Button>
-                                  </div>
-                                ) : null}
-                              </div>
-
-                              <FieldBlock label="Description" className="mt-4">
-                                <textarea
-                                  value={row.description}
-                                  onChange={(event) =>
-                                    updateCollectionRow("resources", row.localId, {
-                                      description: event.target.value,
-                                    })
-                                  }
-                                  readOnly={!isFormEditable}
-                                  rows={4}
-                                  className="w-full rounded-none border border-border bg-white px-3 py-2 text-sm text-black shadow-none outline-none transition-colors focus:border-primary/40 read-only:opacity-100"
-                                />
-                              </FieldBlock>
-                            </div>
-                          ))}
+                                      readOnly={!isFormEditable}
+                                      className={compactTrackerInputClass}
+                                    />
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    <TechnicalTextCell
+                                      value={row.description}
+                                      placeholder="Open description"
+                                      onClick={() =>
+                                        openTechnicalTextModal(
+                                          "resources",
+                                          row.localId,
+                                          "description",
+                                          "Resource Description",
+                                        )
+                                      }
+                                    />
+                                  </td>
+                                  <td className="border-l border-border/70 px-2 py-1.5">
+                                    {isFormEditable ? (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-9 rounded-none px-3 text-sm"
+                                        onClick={() =>
+                                          removeCollectionRow("resources", row.localId)
+                                        }
+                                      >
+                                        Remove
+                                      </Button>
+                                    ) : (
+                                      <span className="text-sm text-black">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       )}
                     </EditableTableSection>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    <div>
+                      <Label className="text-[11px] font-semibold uppercase tracking-[0.24em] text-black">
+                        Notes
+                      </Label>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Large rich text note area for project-specific tracker notes.
+                      </p>
+                    </div>
+
+                    {isFormEditable ? (
+                      <>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-none px-4"
+                            onClick={() => applyNotesCommand("bold")}
+                          >
+                            Bold
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-none px-4"
+                            onClick={() => applyNotesCommand("italic")}
+                          >
+                            Italic
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-none px-4"
+                            onClick={() => applyNotesCommand("underline")}
+                          >
+                            Underline
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-none px-4"
+                            onClick={() => applyNotesCommand("insertUnorderedList")}
+                          >
+                            Bullets
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-none px-4"
+                            onClick={() => applyNotesCommand("insertOrderedList")}
+                          >
+                            Numbered
+                          </Button>
+                        </div>
+
+                        <div
+                          ref={notesEditorRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onInput={(event) =>
+                            updateForm(
+                              "notes_html",
+                              (event.currentTarget as HTMLDivElement).innerHTML,
+                            )
+                          }
+                          className="min-h-[420px] rounded-none border border-border bg-white px-4 py-3 text-sm leading-7 text-black outline-none transition-colors focus:border-primary/40"
+                        />
+                      </>
+                    ) : (
+                      <div
+                        className="min-h-[420px] rounded-none border border-border bg-white px-4 py-3 text-sm leading-7 text-black"
+                        dangerouslySetInnerHTML={{
+                          __html: form.notes_html.trim() || "<p>-</p>",
+                        }}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -1643,6 +1874,75 @@ export function ProjectsPage() {
           </Card>
         </section>
       )}
+      {activeTechnicalTextModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(18,12,24,0.68)] px-4 py-6"
+          onClick={() => setActiveTechnicalTextModal(null)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-none border border-border bg-card p-5 shadow-[0_28px_80px_rgba(18,12,24,0.42)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="font-studio text-2xl font-semibold tracking-[-0.03em] text-foreground">
+                  {activeTechnicalTextModal.title}
+                </h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {isFormEditable
+                    ? "Review or update the full text here."
+                    : "Full text preview."}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="rounded-none px-4"
+                onClick={() => setActiveTechnicalTextModal(null)}
+              >
+                Close
+              </Button>
+            </div>
+
+            <div className="mt-5">
+              <textarea
+                autoFocus
+                wrap="soft"
+                spellCheck={false}
+                value={activeTechnicalTextValue}
+                onChange={(event) => {
+                  if (!activeTechnicalTextModal || !isFormEditable) {
+                    return;
+                  }
+
+                  if (activeTechnicalTextModal.section === "emails") {
+                    updateCollectionRow(
+                      "emails",
+                      activeTechnicalTextModal.localId,
+                      {
+                        other_details: event.target.value,
+                      },
+                    );
+                    return;
+                  }
+
+                  updateCollectionRow(
+                    activeTechnicalTextModal.section,
+                    activeTechnicalTextModal.localId,
+                    {
+                      description: event.target.value,
+                    },
+                  );
+                }}
+                readOnly={!isFormEditable}
+                rows={12}
+                placeholder="Add details"
+                className="min-h-[280px] w-full resize-none overflow-x-hidden rounded-none border border-border bg-white px-4 py-3 text-sm leading-6 text-black outline-none transition-colors placeholder:text-muted-foreground [overflow-wrap:anywhere] [word-break:break-word] focus:border-primary/40 read-only:opacity-100"
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1723,22 +2023,22 @@ function EditableTableSection({
 }) {
   return (
     <Card className="rounded-none border-border/80 bg-card/60 shadow-none">
-      <CardHeader className="border-b border-border/80">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <CardHeader className="border-b border-border/80 px-3 py-2">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <CardTitle className="text-xl font-semibold text-foreground">
+            <CardTitle className="text-lg font-semibold leading-none text-foreground">
               {title}
             </CardTitle>
-            <CardDescription className="mt-2">{description}</CardDescription>
+            <CardDescription className="mt-1 text-sm leading-5">{description}</CardDescription>
           </div>
           {!disabled ? (
             <Button
               type="button"
               variant="outline"
-              className="rounded-full px-5"
+              className="h-9 rounded-none px-4 text-xs uppercase tracking-[0.18em]"
               onClick={onAdd}
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               {addLabel}
             </Button>
           ) : null}
@@ -1751,17 +2051,46 @@ function EditableTableSection({
 
 function ReadonlyFieldValue({ value }: { value: string }) {
   return (
-    <div className="flex min-h-[40px] items-center rounded-none border border-border bg-white px-3 py-2 text-sm text-black">
+    <div className="flex h-10 min-h-[40px] items-center rounded-none border border-border bg-white px-3 py-2 text-sm text-black">
       {value.trim() || "-"}
     </div>
   );
 }
 
+function TechnicalTextCell({
+  value,
+  placeholder,
+  onClick,
+}: {
+  value: string;
+  placeholder: string;
+  onClick: () => void;
+}) {
+  const hasValue = value.trim().length > 0;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-10 w-full items-center rounded-none border border-border bg-white px-3 py-2 text-left text-sm text-black shadow-none transition-colors hover:border-primary/40"
+    >
+      <span
+        className={cn(
+          "block w-full truncate",
+          !hasValue && "text-muted-foreground",
+        )}
+      >
+        {hasValue ? getLongTextPreview(value) : placeholder}
+      </span>
+    </button>
+  );
+}
+
 function TableEmptyState({ text }: { text: string }) {
   return (
-    <div className="px-6 py-14 text-center text-sm text-muted-foreground">
-      <div className="mx-auto flex max-w-md flex-col items-center gap-3">
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+      <div className="mx-auto flex max-w-md flex-col items-center gap-2">
+        <span className="flex h-10 w-10 items-center justify-center rounded-none bg-primary/10 text-primary">
           <FolderKanban className="h-5 w-5" />
         </span>
         <p>{text}</p>
@@ -1817,6 +2146,7 @@ async function callProjectApi<TData>({
 function toFormState(project: ProjectRecord): ProjectFormState {
   return {
     project_name: project.project_name ?? "",
+    project_status: project.is_active === false ? "inactive" : "active",
     ghl_sub_account_name: project.ghl_sub_account_name ?? "",
     clockify_project_name: project.clockify_project_name ?? "",
     asana_project_name: project.asana_project_name ?? "",
@@ -1829,8 +2159,6 @@ function toFormState(project: ProjectRecord): ProjectFormState {
     assigned_sdr: project.assigned_sdr ?? "",
     principal_point_of_contact: project.principal_point_of_contact ?? "",
     is_principal_eo_ypo_member: Boolean(project.is_principal_eo_ypo_member),
-    ghl_phone_number: project.ghl_phone_number ?? "",
-    telvana_phone_number: project.telvana_phone_number ?? "",
     project_types: (project.project_types ?? []).map((row) => ({
       localId: createLocalId("project-type"),
       project_type_id: row.project_type_id,
@@ -1844,6 +2172,7 @@ function toFormState(project: ProjectRecord): ProjectFormState {
         : "",
       domain_name: row.domain_name ?? "",
       expiration_date: toDateInputValue(row.expiration_date),
+      description: row.description ?? "",
     })),
     emails: (project.emails ?? []).map((row) => ({
       localId: createLocalId("email"),
@@ -1865,6 +2194,7 @@ function toFormState(project: ProjectRecord): ProjectFormState {
         ? String(row.agent_gender_kvp_id)
         : "",
       agent_tone_kvp_id: row.agent_tone_kvp_id ? String(row.agent_tone_kvp_id) : "",
+      description: row.description ?? "",
     })),
     resources: (project.resources ?? []).map((row) => ({
       localId: createLocalId("resource"),
@@ -1876,12 +2206,15 @@ function toFormState(project: ProjectRecord): ProjectFormState {
       link: row.link ?? "",
       description: row.description ?? "",
     })),
+    notes_html: project.notes_html ?? "",
   };
 }
 
 function serializeProjectPayload(form: ProjectFormState) {
   return {
     project_name: form.project_name.trim(),
+    is_active: form.project_status === "active",
+    notes_html: form.notes_html.trim() || null,
     ghl_sub_account_name: toNullableString(form.ghl_sub_account_name),
     clockify_project_name: toNullableString(form.clockify_project_name),
     asana_project_name: toNullableString(form.asana_project_name),
@@ -1894,14 +2227,14 @@ function serializeProjectPayload(form: ProjectFormState) {
     assigned_sdr: toNullableString(form.assigned_sdr),
     principal_point_of_contact: toNullableString(form.principal_point_of_contact),
     is_principal_eo_ypo_member: form.is_principal_eo_ypo_member,
-    ghl_phone_number: toNullableString(form.ghl_phone_number),
-    telvana_phone_number: toNullableString(form.telvana_phone_number),
   };
 }
 
 function serializeForm(form: ProjectFormState) {
   return JSON.stringify({
     ...serializeProjectPayload(form),
+    project_status: form.project_status,
+    notes_html: form.notes_html,
     project_types: form.project_types
       .map((row) => ({
         project_type_id: row.project_type_id ?? null,
@@ -1913,6 +2246,7 @@ function serializeForm(form: ProjectFormState) {
       domain_type_kvp_id: row.domain_type_kvp_id,
       domain_name: row.domain_name,
       expiration_date: row.expiration_date,
+      description: row.description,
     })),
     emails: form.emails.map((row) => ({
       email_id: row.email_id ?? null,
@@ -1928,6 +2262,7 @@ function serializeForm(form: ProjectFormState) {
       agent_name: row.agent_name,
       agent_gender_kvp_id: row.agent_gender_kvp_id,
       agent_tone_kvp_id: row.agent_tone_kvp_id,
+      description: row.description,
     })),
     resources: form.resources.map((row) => ({
       resource_id: row.resource_id ?? null,
@@ -1964,12 +2299,48 @@ function getLookupLabel(
   return options.find((option) => option.value === value)?.label ?? "";
 }
 
+function getTechnicalTextValue(
+  form: ProjectFormState,
+  modal: TechnicalTextModalState,
+) {
+  if (modal.section === "emails") {
+    const row = form.emails.find((item) => item.localId === modal.localId);
+    return row?.other_details ?? "";
+  }
+
+  if (modal.section === "domains") {
+    const row = form.domains.find((item) => item.localId === modal.localId);
+    return row?.description ?? "";
+  }
+
+  if (modal.section === "phones") {
+    const row = form.phones.find((item) => item.localId === modal.localId);
+    return row?.description ?? "";
+  }
+
+  const row = form.resources.find((item) => item.localId === modal.localId);
+  return row?.description ?? "";
+}
+
+function getLongTextPreview(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return "";
+  }
+
+  return normalized.length > 48
+    ? `${normalized.slice(0, 48).trimEnd()}...`
+    : normalized;
+}
+
 function createEmptyDomainRow(): DomainFormRow {
   return {
     localId: createLocalId("domain"),
     domain_type_kvp_id: "",
     domain_name: "",
     expiration_date: "",
+    description: "",
   };
 }
 
@@ -1991,6 +2362,7 @@ function createEmptyPhoneRow(): PhoneFormRow {
     agent_name: "",
     agent_gender_kvp_id: "",
     agent_tone_kvp_id: "",
+    description: "",
   };
 }
 
