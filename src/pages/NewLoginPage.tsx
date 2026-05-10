@@ -64,9 +64,9 @@ export function NewLoginPage({
 
       <div className="relative z-10 flex min-h-screen items-center px-6 py-10">
         <div className="mx-auto grid w-full max-w-7xl gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-          <section className="flex flex-col justify-between rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,14,29,0.78),rgba(7,11,23,0.42))] p-8 shadow-[0_32px_120px_rgba(3,8,20,0.55)] backdrop-blur-xl md:p-10">
+          <section className="flex flex-col justify-between border border-white/10 bg-[linear-gradient(180deg,rgba(8,14,29,0.78),rgba(7,11,23,0.42))] p-8 shadow-[0_32px_120px_rgba(3,8,20,0.55)] backdrop-blur-xl md:p-10">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#8bb8ff]/30 bg-[#091325]/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#d9e7ff]">
+              <div className="inline-flex items-center gap-2 rounded-none border border-[#8bb8ff]/30 bg-[#091325]/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#d9e7ff]">
                 <Sparkles className="h-3.5 w-3.5 text-[#8bb8ff]" />
                 Login Concept 02
               </div>
@@ -87,15 +87,15 @@ export function NewLoginPage({
             </div>
 
             <div className="mt-10 grid gap-4 text-sm text-[#d8e2f5] sm:grid-cols-3">
-              <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-4 backdrop-blur">
+              <div className="rounded-none border border-white/10 bg-white/5 p-4 backdrop-blur">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[#7fa5df]">Signal</p>
                 <p className="mt-3 text-base leading-6">Stronger content hierarchy for first-time focus.</p>
               </div>
-              <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-4 backdrop-blur">
+              <div className="rounded-none border border-white/10 bg-white/5 p-4 backdrop-blur">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[#7fa5df]">Surface</p>
                 <p className="mt-3 text-base leading-6">Warmer glass treatment with less visual noise on the form.</p>
               </div>
-              <div className="rounded-[1.4rem] border border-white/10 bg-white/5 p-4 backdrop-blur">
+              <div className="rounded-none border border-white/10 bg-white/5 p-4 backdrop-blur">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-[#7fa5df]">Mood</p>
                 <p className="mt-3 text-base leading-6">A quieter, premium alternative to the original space portal.</p>
               </div>
@@ -103,7 +103,7 @@ export function NewLoginPage({
           </section>
 
           <section className="relative flex items-center justify-center">
-            <div className="w-full max-w-md overflow-hidden rounded-[2rem] border border-[rgba(171,197,255,0.22)] bg-[linear-gradient(180deg,rgba(246,248,255,0.92),rgba(225,233,255,0.78))] text-[#09111f] shadow-[0_32px_120px_rgba(2,7,18,0.48)] backdrop-blur-2xl">
+            <div className="w-full max-w-md overflow-hidden border border-[rgba(171,197,255,0.22)] bg-[linear-gradient(180deg,rgba(246,248,255,0.92),rgba(225,233,255,0.78))] text-[#09111f] shadow-[0_32px_120px_rgba(2,7,18,0.48)] backdrop-blur-2xl">
               <div className="border-b border-[rgba(9,17,31,0.08)] px-6 py-5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#4f6fa8]">
                   Alternate login
@@ -132,7 +132,7 @@ export function NewLoginPage({
                       onChange={(event) => setEmail(event.target.value)}
                       disabled={isLoggingIn || isLaunching}
                       placeholder="name@company.com"
-                      className="h-12 rounded-2xl border-[rgba(88,116,168,0.18)] bg-white/75 px-4 text-[15px] text-[#0a1222] shadow-none placeholder:text-[#7a88a3] focus:border-[#6489d4]"
+                      className="h-12 rounded-none border-[rgba(88,116,168,0.18)] bg-white/75 px-4 text-[15px] text-[#0a1222] shadow-none placeholder:text-[#7a88a3] focus:border-[#6489d4]"
                     />
                   </div>
 
@@ -150,12 +150,12 @@ export function NewLoginPage({
                       onChange={(event) => setPassword(event.target.value)}
                       disabled={isLoggingIn || isLaunching}
                       placeholder="Enter your password"
-                      className="h-12 rounded-2xl border-[rgba(88,116,168,0.18)] bg-white/75 px-4 text-[15px] text-[#0a1222] shadow-none placeholder:text-[#7a88a3] focus:border-[#6489d4]"
+                      className="h-12 rounded-none border-[rgba(88,116,168,0.18)] bg-white/75 px-4 text-[15px] text-[#0a1222] shadow-none placeholder:text-[#7a88a3] focus:border-[#6489d4]"
                     />
                   </div>
 
                   {error ? (
-                    <div className="rounded-2xl border border-[rgba(192,72,72,0.18)] bg-[rgba(255,92,92,0.09)] px-4 py-3 text-sm text-[#9f2f2f]">
+                    <div className="rounded-none border border-[rgba(192,72,72,0.18)] bg-[rgba(255,92,92,0.09)] px-4 py-3 text-sm text-[#9f2f2f]">
                       {error}
                     </div>
                   ) : null}
@@ -163,7 +163,7 @@ export function NewLoginPage({
                   <Button
                     type="submit"
                     disabled={isLoggingIn || isLaunching}
-                    className="h-12 w-full rounded-2xl bg-[#0b1730] text-[15px] font-semibold text-white shadow-[0_18px_44px_rgba(11,23,48,0.28)] transition-transform hover:translate-y-[-1px] hover:bg-[#132344]"
+                    className="h-12 w-full rounded-none bg-[#0b1730] text-[15px] font-semibold text-white shadow-[0_18px_44px_rgba(11,23,48,0.28)] transition-transform hover:translate-y-[-1px] hover:bg-[#132344]"
                   >
                     <span>
                       {isLaunching ? "Launching workspace" : isLoggingIn ? "Signing in" : "Continue"}
@@ -185,8 +185,8 @@ export function NewLoginPage({
             </div>
 
             {isLaunching ? (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[2rem] border border-white/10 bg-[rgba(3,9,20,0.45)] backdrop-blur-md">
-                <div className="rounded-[1.6rem] border border-white/10 bg-[rgba(10,18,34,0.82)] px-8 py-7 text-center shadow-[0_22px_80px_rgba(0,0,0,0.34)]">
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center border border-white/10 bg-[rgba(3,9,20,0.45)] backdrop-blur-md">
+                <div className="border border-white/10 bg-[rgba(10,18,34,0.82)] px-8 py-7 text-center shadow-[0_22px_80px_rgba(0,0,0,0.34)]">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#8fb2ec]">
                     DevTool
                   </p>

@@ -177,7 +177,7 @@ export function SearchSelect({
           disabled={disabled}
           className={cn(
             "flex h-9 w-full items-center justify-between gap-2 rounded-none border border-input bg-background px-3 text-left text-sm text-foreground opacity-100 shadow-none transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50",
             !selectedOption && "text-muted-foreground",
           )}
           aria-haspopup="listbox"

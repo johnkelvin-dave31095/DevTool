@@ -5,6 +5,9 @@ export const API_BASE_URL =
 export const OUTLOOK_EVENTS_URL = `${API_BASE_URL}/DevTools/OutlookCalendar`;
 export const CLOCKIFY_SYNC_URL = `${API_BASE_URL}/DevTools/Clockify`;
 export const ASANA_TICKETS_URL = `${API_BASE_URL}/DevTools/Asana`;
+export const PROJECTS_CRUD_URL = `${API_BASE_URL}/projects/crud`;
+export const PROJECTS_LOOKUP_URL = `${API_BASE_URL}/projects/lookup`;
+export const PROJECTS_COMPLETENESS_URL = `${API_BASE_URL}/projects/completeness`;
 export const INTEGRATION_SETUP_URL =
   import.meta.env.VITE_SETUP_URL ?? `${API_BASE_URL}/DevTools/AccountSetup`;
 
@@ -170,6 +173,14 @@ export type AsanaTaskSummary = {
 export type AsanaTicketsResponse = {
   count: number;
   tasks: AsanaTaskSummary[];
+};
+
+export type ProjectApiResponse<TData> = {
+  success: boolean;
+  action: string;
+  data: TData;
+  error?: string;
+  message?: string;
 };
 
 export async function postJson<TResponse, TBody>(

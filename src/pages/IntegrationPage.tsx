@@ -17,6 +17,7 @@ import { Button } from "../components/ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
@@ -513,8 +514,8 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
   }
 
   return (
-    <div className="space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-      <section className="sticky top-16 z-20">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <section>
         <Card className="overflow-hidden rounded-none border border-border/80 bg-card/95 shadow-[0_10px_24px_rgba(20,14,28,0.22)] backdrop-blur-md">
           <CardContent className="p-0">
             <div className="flex flex-col xl:flex-row xl:items-stretch">
@@ -539,6 +540,9 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                       Outlook to Clockify
                     </h1>
                   </div>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                    Review Outlook events, resolve matches, and push a clean batch to Clockify.
+                  </p>
                 </div>
               </div>
 
@@ -567,7 +571,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
 
               <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
 
-              <div className="flex flex-wrap items-center gap-2 px-4 py-3 xl:min-w-[290px] xl:justify-center">
+              <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 xl:min-w-[320px] xl:grid-cols-2 xl:items-center">
                 <InlineStat label="Draft" value={String(reviewedRows.length)} />
                 <span className="text-primary/35">•</span>
                 <InlineStat label="Ready" value={String(summary.readyCount)} />
@@ -576,6 +580,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                   label="Review"
                   value={String(summary.needsReviewCount + summary.errorCount)}
                 />
+                <InlineStat label="Included" value={String(summary.includedCount)} />
               </div>
 
               <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
@@ -619,23 +624,21 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
         ) : null}
       </section>
 
-      {error ? (
-        <section className="rounded-lg border border-accent/40 bg-accent/10 p-4 text-accent">
-          <div className="flex gap-3">
-            <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
-            <p className="text-sm font-semibold">{error}</p>
-          </div>
-        </section>
-      ) : null}
+      {error ? <PageAlert text={error} /> : null}
 
       <section>
         <Card className="overflow-hidden border-[hsl(var(--border))] bg-card/92 shadow-[0_22px_60px_rgba(20,14,28,0.24)]">
             <CardHeader className="app-hero-surface border-b border-border/80 px-4 py-3">
               <div className="flex flex-col gap-2 xl:flex-row xl:items-stretch xl:justify-between">
                 <div className="flex min-w-0 flex-col xl:flex-row xl:items-center xl:gap-3">
-                  <CardTitle className="font-studio shrink-0 text-3xl font-semibold tracking-[-0.04em] text-foreground">
-                    Sync Review Table
-                  </CardTitle>
+                  <div>
+                    <CardTitle className="font-studio shrink-0 text-3xl font-semibold tracking-[-0.04em] text-foreground">
+                      Review Table
+                    </CardTitle>
+                    <CardDescription className="mt-2">
+                      Check each staged row before pushing it to Clockify.
+                    </CardDescription>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-start gap-3 xl:justify-end">
@@ -784,11 +787,12 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
 
       {syncResult ? (
         <section>
-          <Card>
-            <CardHeader>
+          <Card className="border-border/80 bg-card/95 shadow-none">
+            <CardHeader className="border-b border-border/80">
               <CardTitle>Clockify Result</CardTitle>
+              <CardDescription>Latest push result from Clockify.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-6">
               {syncResult.created.map((item) => (
                 <ResultRow
                   key={item.timeEntryId ?? `${item.title}-${item.start}`}
@@ -811,14 +815,15 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
       ) : null}
 
       <section className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
-        <Card>
-          <CardHeader>
+        <Card className="border-border/80 bg-card/95 shadow-none">
+          <CardHeader className="border-b border-border/80">
             <CardTitle>Activity</CardTitle>
+            <CardDescription>Recent sync and push events for this page.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="space-y-3">
               {activity.length === 0 ? (
-                <div className="rounded-md border bg-background p-4 text-sm text-muted-foreground">
+                <div className="rounded-md border border-dashed border-border/80 bg-muted/35 p-4 text-sm text-muted-foreground">
                   No activity yet.
                 </div>
               ) : (
@@ -1254,6 +1259,17 @@ function StudioField({
       </Label>
       {children}
     </div>
+  );
+}
+
+function PageAlert({ text }: { text: string }) {
+  return (
+    <section className="border border-[rgba(240,119,93,0.20)] bg-[rgba(240,119,93,0.08)] px-4 py-3 text-sm text-accent">
+      <div className="flex gap-3">
+        <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+        <p className="font-semibold">{text}</p>
+      </div>
+    </section>
   );
 }
 

@@ -1,10 +1,14 @@
 import json
+import logging
 import os
 from datetime import datetime
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 CLOCKIFY_API_BASE_URL = os.environ.get(
     "CLOCKIFY_API_BASE_URL",
@@ -14,6 +18,17 @@ CLOCKIFY_API_BASE_URL = os.environ.get(
 
 def lambda_handler(event, context):
     try:
+        logger.info(
+            "clockify_lambda_request %s",
+            json.dumps(
+                {
+                    "httpMethod": get_http_method(event),
+                    "queryStringParameters": event.get("queryStringParameters") or {},
+                },
+                default=str,
+            ),
+        )
+
         if get_http_method(event) == "OPTIONS":
             return response(200, {"message": "ok"})
 
@@ -65,15 +80,18 @@ def lambda_handler(event, context):
 
                     project = project_lookup.get(validated_entry["projectId"])
                     if not project:
-                        skipped.append(
-                            {
-                                "title": validated_entry["title"],
-                                "projectId": validated_entry["projectId"],
-                                "taskId": validated_entry["taskId"],
-                                "start": validated_entry["start"],
-                                "end": validated_entry["end"],
-                                "error": "Clockify project not found for the submitted projectId.",
-                            }
+                        skip_payload = {
+                            "title": validated_entry["title"],
+                            "projectId": validated_entry["projectId"],
+                            "taskId": validated_entry["taskId"],
+                            "start": validated_entry["start"],
+                            "end": validated_entry["end"],
+                            "error": "Clockify project not found for the submitted projectId.",
+                        }
+                        skipped.append(skip_payload)
+                        logger.warning(
+                            "clockify_push_skipped %s",
+                            json.dumps(skip_payload, default=str),
                         )
                         continue
 
@@ -90,16 +108,19 @@ def lambda_handler(event, context):
                         )
 
                     if validated_entry["taskId"] and not task:
-                        skipped.append(
-                            {
-                                "title": validated_entry["title"],
-                                "projectId": validated_entry["projectId"],
-                                "projectName": project.get("projectName"),
-                                "taskId": validated_entry["taskId"],
-                                "start": validated_entry["start"],
-                                "end": validated_entry["end"],
-                                "error": "Clockify task not found under the submitted projectId.",
-                            }
+                        skip_payload = {
+                            "title": validated_entry["title"],
+                            "projectId": validated_entry["projectId"],
+                            "projectName": project.get("projectName"),
+                            "taskId": validated_entry["taskId"],
+                            "start": validated_entry["start"],
+                            "end": validated_entry["end"],
+                            "error": "Clockify task not found under the submitted projectId.",
+                        }
+                        skipped.append(skip_payload)
+                        logger.warning(
+                            "clockify_push_skipped %s",
+                            json.dumps(skip_payload, default=str),
                         )
                         continue
 
@@ -114,35 +135,44 @@ def lambda_handler(event, context):
                         billable=validated_entry["billable"],
                     )
 
-                    created.append(
-                        {
-                            "title": validated_entry["title"],
-                            "projectId": validated_entry["projectId"],
-                            "projectName": project.get("projectName"),
-                            "taskId": validated_entry["taskId"],
-                            "taskName": task.get("taskName") if task else None,
-                            "timeEntryId": time_entry.get("id"),
-                            "start": validated_entry["start"],
-                            "end": validated_entry["end"],
-                            "billable": validated_entry["billable"],
-                        }
+                    created_payload = {
+                        "title": validated_entry["title"],
+                        "projectId": validated_entry["projectId"],
+                        "projectName": project.get("projectName"),
+                        "taskId": validated_entry["taskId"],
+                        "taskName": task.get("taskName") if task else None,
+                        "timeEntryId": time_entry.get("id"),
+                        "start": validated_entry["start"],
+                        "end": validated_entry["end"],
+                        "billable": validated_entry["billable"],
+                    }
+                    created.append(created_payload)
+                    logger.info(
+                        "clockify_push_created %s",
+                        json.dumps(created_payload, default=str),
                     )
 
                 except ValidationError as exc:
-                    skipped.append(
-                        {
-                            "title": entry.get("title"),
-                            "error": str(exc),
-                        }
+                    skip_payload = {
+                        "title": entry.get("title"),
+                        "error": str(exc),
+                    }
+                    skipped.append(skip_payload)
+                    logger.warning(
+                        "clockify_push_skipped %s",
+                        json.dumps(skip_payload, default=str),
                     )
 
                 except ClockifyError as exc:
-                    skipped.append(
-                        {
-                            "title": entry.get("title"),
-                            "error": exc.message,
-                            "details": exc.details,
-                        }
+                    skip_payload = {
+                        "title": entry.get("title"),
+                        "error": exc.message,
+                        "details": exc.details,
+                    }
+                    skipped.append(skip_payload)
+                    logger.warning(
+                        "clockify_push_skipped %s",
+                        json.dumps(skip_payload, default=str),
                     )
 
             status_code = 200 if created else 400
@@ -746,6 +776,18 @@ def request_json(url, method, api_key, body=None):
     except HTTPError as exc:
         raw_error = exc.read().decode("utf-8")
         details = parse_error_body(raw_error)
+        logger.warning(
+            "clockify_http_error %s",
+            json.dumps(
+                {
+                    "method": method,
+                    "url": url,
+                    "statusCode": exc.code,
+                    "details": details,
+                },
+                default=str,
+            ),
+        )
 
         message = None
 
@@ -763,6 +805,17 @@ def request_json(url, method, api_key, body=None):
         ) from exc
 
     except URLError as exc:
+        logger.warning(
+            "clockify_url_error %s",
+            json.dumps(
+                {
+                    "method": method,
+                    "url": url,
+                    "details": str(exc),
+                },
+                default=str,
+            ),
+        )
         raise ClockifyError(
             502,
             "Could not reach Clockify.",
@@ -816,6 +869,16 @@ def to_bool(value, default=False):
 
 
 def response(status_code, body):
+    logger.info(
+        "clockify_lambda_response %s",
+        json.dumps(
+            {
+                "statusCode": status_code,
+                "body": body,
+            },
+            default=str,
+        ),
+    )
     return {
         "statusCode": status_code,
         "headers": {

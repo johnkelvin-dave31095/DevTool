@@ -48,7 +48,7 @@ export function AsciiLogoLoginPage({
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#05020b] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_left,rgba(120,84,255,0.12),transparent_30%),linear-gradient(180deg,#05020b_0%,#070311_100%)]" />
+      <div className="absolute inset-0 bg-[#05020b]" />
       <div className="relative z-10 grid h-full w-full lg:grid-cols-[1.2fr_0.8fr]">
         <section className="relative hidden h-full lg:block">
           <AsciiLogoScene />
@@ -60,7 +60,7 @@ export function AsciiLogoLoginPage({
         </section>
 
         <section className="relative flex h-full items-center justify-center px-6 py-10 sm:px-8">
-          <div className="w-full max-w-md overflow-hidden rounded-[2rem] border border-[rgba(120,84,255,0.2)] bg-[linear-gradient(180deg,rgba(10,7,18,0.9),rgba(6,4,12,0.86))] shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-xl">
+          <div className="w-full max-w-md overflow-hidden border border-[rgba(120,84,255,0.2)] bg-[linear-gradient(180deg,rgba(10,7,18,0.9),rgba(6,4,12,0.86))] shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-xl">
             <div className="border-b border-[rgba(120,84,255,0.14)] px-6 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8f74ff]">
                 Oaktech Systems
@@ -85,7 +85,7 @@ export function AsciiLogoLoginPage({
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     disabled={isLoggingIn || isLaunching}
-                    className="h-12 rounded-2xl border-[rgba(120,84,255,0.18)] bg-[rgba(255,255,255,0.04)] px-4 text-[15px] text-white shadow-none placeholder:text-[rgba(194,202,214,0.42)] focus:border-[#8f74ff]"
+                    className="h-12 rounded-none border-[rgba(120,84,255,0.18)] bg-[rgba(255,255,255,0.04)] px-4 text-[15px] text-white shadow-none placeholder:text-[rgba(194,202,214,0.42)] focus:border-[#8f74ff]"
                   />
                 </div>
 
@@ -102,12 +102,12 @@ export function AsciiLogoLoginPage({
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     disabled={isLoggingIn || isLaunching}
-                    className="h-12 rounded-2xl border-[rgba(120,84,255,0.18)] bg-[rgba(255,255,255,0.04)] px-4 text-[15px] text-white shadow-none placeholder:text-[rgba(194,202,214,0.42)] focus:border-[#8f74ff]"
+                    className="h-12 rounded-none border-[rgba(120,84,255,0.18)] bg-[rgba(255,255,255,0.04)] px-4 text-[15px] text-white shadow-none placeholder:text-[rgba(194,202,214,0.42)] focus:border-[#8f74ff]"
                   />
                 </div>
 
                 {error ? (
-                  <div className="rounded-2xl border border-[rgba(255,111,111,0.18)] bg-[rgba(255,111,111,0.08)] px-4 py-3 text-sm text-[#ffb4b4]">
+                  <div className="rounded-none border border-[rgba(255,111,111,0.18)] bg-[rgba(255,111,111,0.08)] px-4 py-3 text-sm text-[#ffb4b4]">
                     {error}
                   </div>
                 ) : null}
@@ -115,7 +115,7 @@ export function AsciiLogoLoginPage({
                 <Button
                   type="submit"
                   disabled={isLoggingIn || isLaunching}
-                  className="h-12 w-full rounded-2xl bg-[#7854ff] text-[15px] font-semibold text-white shadow-[0_18px_44px_rgba(120,84,255,0.3)] transition-transform hover:translate-y-[-1px] hover:bg-[#8d70ff]"
+                  className="h-12 w-full rounded-none bg-[#7854ff] text-[15px] font-semibold text-white shadow-[0_18px_44px_rgba(120,84,255,0.3)] transition-transform hover:translate-y-[-1px] hover:bg-[#8d70ff]"
                 >
                   <span>
                     {isLaunching ? "Launching workspace" : isLoggingIn ? "Signing in" : "Continue"}

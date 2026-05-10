@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   Blocks,
   CheckCircle2,
+  FolderKanban,
   KeyRound,
   Settings2,
   SlidersHorizontal,
@@ -23,6 +24,7 @@ import { IntegrationPage } from "./pages/IntegrationPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NewLoginPage } from "./pages/NewLoginPage";
 import { PreloadRulesPage } from "./pages/PreloadRulesPage";
+import { ProjectsPage } from "./pages/ProjectsPage";
 import { SetupPage } from "./pages/SetupPage";
 import {
   ApiError,
@@ -34,29 +36,13 @@ import {
   postJson,
 } from "./lib/api";
 
-type AppModule = "outlook" | "asana" | "rules";
-type AppTheme = "purple" | "light";
+type AppModule = "outlook" | "asana" | "rules" | "projects";
 type LoginVariant = "classic" | "newlogin" | "newlogin-ascii";
 type AppToast = {
   title: string;
   detail?: string;
   tone: "success" | "warning";
 };
-
-const THEME_STORAGE_KEY = "devtool-theme";
-
-function getStoredTheme(): AppTheme {
-  if (typeof window === "undefined") {
-    return "light";
-  }
-
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (storedTheme === "purple") {
-    return "purple";
-  }
-
-  return "light";
-}
 
 function getLoginVariant(): LoginVariant {
   if (typeof window === "undefined") {
@@ -99,8 +85,7 @@ function getLoginVariant(): LoginVariant {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentEmail, setCurrentEmail] = useState("");
-  const [activeModule, setActiveModule] = useState<AppModule>("outlook");
-  const [theme, setTheme] = useState<AppTheme>(() => getStoredTheme());
+  const [activeModule, setActiveModule] = useState<AppModule>("projects");
   const [setupState, setSetupState] = useState<"checking" | "needs_setup" | "ready">("checking");
   const [isEditingSetup, setIsEditingSetup] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -141,9 +126,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
+    document.documentElement.dataset.theme = "light";
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated || !currentEmail) {
@@ -268,7 +252,7 @@ export default function App() {
     window.sessionStorage.removeItem("devtool-email");
     setIsAuthenticated(false);
     setCurrentEmail("");
-    setActiveModule("outlook");
+    setActiveModule("projects");
     setSetupState("checking");
     setIsEditingSetup(false);
     setIsSettingsOpen(false);
@@ -518,8 +502,6 @@ export default function App() {
         <div className="flex min-w-0 flex-col">
           <Topbar
             currentEmail={currentEmail}
-            theme={theme}
-            onToggleTheme={() => setTheme((current) => (current === "purple" ? "light" : "purple"))}
           />
           <ModuleRail
             activeModule={activeModule}
@@ -531,6 +513,8 @@ export default function App() {
               <IntegrationPage currentEmail={currentEmail} />
             ) : activeModule === "asana" ? (
               <AsanaPage currentEmail={currentEmail} />
+            ) : activeModule === "projects" ? (
+              <ProjectsPage />
             ) : (
               <PreloadRulesPage currentEmail={currentEmail} />
             )}
@@ -785,6 +769,15 @@ function ModuleRail({
         >
           <Blocks className="h-4 w-4" />
           Asana
+        </Button>
+        <Button
+          type="button"
+          variant={activeModule === "projects" ? "default" : "outline"}
+          className="h-10 shrink-0 rounded-full px-4"
+          onClick={() => onSelectModule("projects")}
+        >
+          <FolderKanban className="h-4 w-4" />
+          Projects
         </Button>
         <Button
           type="button"

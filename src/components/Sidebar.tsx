@@ -1,6 +1,7 @@
 import {
   ArrowRightLeft,
   Blocks,
+  FolderKanban,
   LogOut,
   Settings2,
   SlidersHorizontal,
@@ -11,8 +12,8 @@ import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 
 type SidebarProps = {
-  activeModule: "outlook" | "asana" | "rules";
-  onSelectModule: (module: "outlook" | "asana" | "rules") => void;
+  activeModule: "outlook" | "asana" | "rules" | "projects";
+  onSelectModule: (module: "outlook" | "asana" | "rules" | "projects") => void;
   onOpenSettings: () => void;
   onLogout: () => void;
 };
@@ -44,7 +45,7 @@ export function Sidebar({
       <nav className="flex-1 space-y-1 py-4">
         <div className="px-5 pb-3">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            Clockify
+            EZ Clockify
           </p>
         </div>
         <Button
@@ -85,6 +86,25 @@ export function Sidebar({
         >
           <SlidersHorizontal className="h-4 w-4" />
           Preload Rules
+        </Button>
+
+        <div className="px-5 pb-3 pt-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            EZ Tracker
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          className={cn(
+            "relative h-11 w-full justify-start rounded-none px-5 transition-all",
+            activeModule === "projects"
+              ? "border-y border-primary/25 bg-[linear-gradient(90deg,rgba(111,76,154,0.22),rgba(111,76,154,0.08))] pl-6 font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-1px_0_rgba(255,255,255,0.08)] before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-primary before:content-[''] hover:bg-[linear-gradient(90deg,rgba(111,76,154,0.24),rgba(111,76,154,0.1))] hover:text-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          )}
+          onClick={() => onSelectModule("projects")}
+        >
+          <FolderKanban className="h-4 w-4" />
+          Projects
         </Button>
       </nav>
 

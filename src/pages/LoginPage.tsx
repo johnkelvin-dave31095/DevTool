@@ -108,7 +108,7 @@ export function LoginPage({
             <Button
               type="submit"
               disabled={isLoggingIn || effectiveLaunching}
-              className="h-11 w-full rounded-full bg-[#d0b7f1] text-[15px] font-semibold text-[#241a2c] shadow-[0_16px_36px_rgba(94,67,128,0.28)] hover:bg-[#dcc9f6]"
+              className="h-11 w-full rounded-none bg-[#d0b7f1] text-[15px] font-semibold text-[#241a2c] shadow-[0_16px_36px_rgba(94,67,128,0.28)] hover:bg-[#dcc9f6]"
             >
               {effectiveLaunching
                 ? "Warping"
@@ -132,7 +132,7 @@ export function LoginPage({
             type="button"
             onClick={handleReturnToLogin}
             disabled={effectiveLaunching}
-            className="h-10 rounded-full border border-[rgba(205,182,233,0.18)] bg-[rgba(40,28,50,0.72)] px-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f0e6ff] shadow-[0_14px_32px_rgba(18,12,24,0.34)] backdrop-blur-xl transition-colors hover:bg-[rgba(58,42,72,0.9)]"
+            className="h-10 rounded-none border border-[rgba(205,182,233,0.18)] bg-[rgba(40,28,50,0.72)] px-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f0e6ff] shadow-[0_14px_32px_rgba(18,12,24,0.34)] backdrop-blur-xl transition-colors hover:bg-[rgba(58,42,72,0.9)]"
           >
             Login
           </button>
@@ -140,7 +140,7 @@ export function LoginPage({
             type="button"
             onClick={handleRegenerateScene}
             disabled={effectiveLaunching}
-            className="h-10 rounded-full border border-[rgba(205,182,233,0.18)] bg-[rgba(49,37,62,0.72)] px-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f2e7ff] shadow-[0_14px_32px_rgba(18,12,24,0.28)] backdrop-blur-xl transition-colors hover:bg-[rgba(66,49,84,0.9)]"
+            className="h-10 rounded-none border border-[rgba(205,182,233,0.18)] bg-[rgba(49,37,62,0.72)] px-5 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f2e7ff] shadow-[0_14px_32px_rgba(18,12,24,0.28)] backdrop-blur-xl transition-colors hover:bg-[rgba(66,49,84,0.9)]"
           >
             Regen
           </button>
