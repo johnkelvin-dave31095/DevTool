@@ -58,6 +58,17 @@ type AppToast = {
 
 type DescriptionMode = "body" | "title" | "body_title";
 
+type ClockifyPushEntry = {
+  title: string;
+  description: string;
+  start: string;
+  end: string;
+  projectId: string;
+  taskId?: string;
+  billable: boolean;
+  outlookEventId?: string;
+};
+
 type SyncDraftRow = {
   id: string;
   source: "outlook" | "manual";
@@ -87,6 +98,26 @@ type ReviewedSyncRow = SyncDraftRow & {
   }>;
 };
 
+type MergeReviewEntry = {
+  id: string;
+  title: string;
+  projectId: string;
+  projectName: string;
+  taskId: string;
+  taskName: string;
+  start: string;
+  end: string;
+  hours: number;
+  description: string;
+  sourceRows: ReviewedSyncRow[];
+  spansMultipleDays: boolean;
+};
+
+type MergeReviewState = {
+  directRows: ReviewedSyncRow[];
+  mergedEntries: MergeReviewEntry[];
+};
+
 export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
   const [startDate, setStartDate] = useState(getUtcMinus7Today());
   const [endDate, setEndDate] = useState(getUtcMinus7Today());
@@ -106,6 +137,8 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
   const [toast, setToast] = useState<AppToast | null>(null);
   const [descriptionMode, setDescriptionMode] =
     useState<DescriptionMode>("body");
+  const [mergeReviewState, setMergeReviewState] =
+    useState<MergeReviewState | null>(null);
 
   const projectById = useMemo(
     () => new Map(projects.map((project) => [project.projectId, project])),
@@ -150,6 +183,26 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
     () => reviewedRows.find((row) => row.id === activeDescriptionRowId) ?? null,
     [activeDescriptionRowId, reviewedRows],
   );
+  const mergeReviewSummary = useMemo(() => {
+    if (!mergeReviewState) {
+      return null;
+    }
+
+    const mergedRowCount = mergeReviewState.mergedEntries.reduce(
+      (sum, entry) => sum + entry.sourceRows.length,
+      0,
+    );
+    const mergedHours = roundHours(
+      mergeReviewState.mergedEntries.reduce((sum, entry) => sum + entry.hours, 0),
+    );
+
+    return {
+      groupCount: mergeReviewState.mergedEntries.length,
+      mergedRowCount,
+      mergedHours,
+      directRowCount: mergeReviewState.directRows.length,
+    };
+  }, [mergeReviewState]);
 
   const isBusy = isPreparingReview || isSubmitting;
   const allRowsIncluded =
@@ -266,6 +319,14 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
       return;
     }
 
+    const mergeReview = buildMergeReviewState(rowsToSubmit, projectById);
+
+    if (mergeReview) {
+      setError(null);
+      setMergeReviewState(mergeReview);
+      return;
+    }
+
     const confirmed = window.confirm(
       `Are you sure you want to push ${rowsToSubmit.length} reviewed row${rowsToSubmit.length === 1 ? "" : "s"} to Clockify?`,
     );
@@ -274,6 +335,10 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
       return;
     }
 
+    await submitClockifyEntries(rowsToSubmit.map(mapReviewedRowToPushEntry));
+  }
+
+  async function submitClockifyEntries(entries: ClockifyPushEntry[]) {
     setError(null);
     setIsSubmitting(true);
 
@@ -283,36 +348,20 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
         {
           action: "push";
           email: string;
-          entries: Array<{
-            title: string;
-            description: string;
-            start: string;
-            end: string;
-            projectId: string;
-            taskId?: string;
-            billable: boolean;
-            outlookEventId?: string;
-          }>;
+          entries: ClockifyPushEntry[];
         }
       >(CLOCKIFY_SYNC_URL, {
         action: "push",
         email: currentEmail,
-        entries: rowsToSubmit.map((row) => ({
-          title: row.sourceTitle,
-          description: row.description,
-          start: row.start,
-          end: row.end,
-          projectId: row.projectId,
-          ...(row.taskId ? { taskId: row.taskId } : {}),
-          billable: true,
-          outlookEventId: row.outlookEventId,
-        })),
+        entries,
       });
 
       handleClockifyResult(data);
+      return true;
     } catch (exc) {
       if (exc instanceof ApiError && isClockifySyncResponse(exc.details)) {
         handleClockifyResult(exc.details);
+        return true;
       } else {
         setError(getErrorMessage(exc));
         setToast({
@@ -326,8 +375,92 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
           status: "warning",
         });
       }
+
+      return false;
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function handleMergeReviewHoursChange(entryId: string, hoursValue: string) {
+    setMergeReviewState((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        mergedEntries: current.mergedEntries.map((entry) => {
+          if (entry.id !== entryId) {
+            return entry;
+          }
+
+          const nextHours = Number.parseFloat(hoursValue);
+
+          if (!Number.isFinite(nextHours) || nextHours <= 0) {
+            return {
+              ...entry,
+              hours: 0,
+              end: "",
+            };
+          }
+
+          const roundedHours = roundHours(nextHours);
+
+          return {
+            ...entry,
+            hours: roundedHours,
+            end: getEndFromStartAndHours(entry.start, roundedHours),
+          };
+        }),
+      };
+    });
+  }
+
+  function handleMergeReviewDescriptionChange(
+    entryId: string,
+    description: string,
+  ) {
+    setMergeReviewState((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        mergedEntries: current.mergedEntries.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                description,
+              }
+            : entry,
+        ),
+      };
+    });
+  }
+
+  async function handleMergeReviewSubmit() {
+    if (!mergeReviewState) {
+      return;
+    }
+
+    const invalidEntry = mergeReviewState.mergedEntries.find(
+      (entry) => getMergeReviewIssues(entry).length > 0,
+    );
+
+    if (invalidEntry) {
+      setError("Finish each merged entry before submitting to Clockify.");
+      return;
+    }
+
+    const submitted = await submitClockifyEntries([
+      ...mergeReviewState.directRows.map(mapReviewedRowToPushEntry),
+      ...mergeReviewState.mergedEntries.map(mapMergeReviewEntryToPushEntry),
+    ]);
+
+    if (submitted) {
+      setMergeReviewState(null);
     }
   }
 
@@ -891,6 +1024,331 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
               >
                 Done
               </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {mergeReviewState ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(18,12,24)] px-4 py-6"
+          onClick={() => {
+            if (!isSubmitting) {
+              setMergeReviewState(null);
+            }
+          }}
+        >
+          <div
+            className="max-h-[calc(100vh-1rem)] w-full max-w-[1120px] overflow-y-auto rounded-none border border-border/80 bg-card shadow-[0_28px_80px_rgba(18,12,24,0.42)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="border-b border-border/80 bg-card px-4 py-4 sm:px-5">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="secondary"
+                      className="h-6 rounded-none border border-primary bg-primary px-2.5 text-[9px] uppercase tracking-[0.16em] text-primary-foreground"
+                    >
+                      Merge review
+                    </Badge>
+                    <Badge
+                      variant="secondary"
+                      className="h-6 rounded-none border border-border bg-secondary px-2.5 text-[10px] text-foreground"
+                    >
+                      Final check before Clockify push
+                    </Badge>
+                  </div>
+                  <h3 className="mt-2 font-studio text-[1.65rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[1.9rem]">
+                    Merge duplicate Clockify rows
+                  </h3>
+                  <p className="mt-1.5 max-w-3xl text-[13px] leading-5 text-muted-foreground">
+                    Duplicate project and task combinations are grouped here so
+                    we can send a single clean Clockify entry. Adjust the merged
+                    hours or description wherever needed before submitting.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-none px-4"
+                    disabled={isSubmitting}
+                    onClick={() => setMergeReviewState(null)}
+                  >
+                    Back to review table
+                  </Button>
+                </div>
+              </div>
+
+              {mergeReviewSummary ? (
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <MergeReviewStat
+                    label="Duplicate groups"
+                    value={String(mergeReviewSummary.groupCount)}
+                    detail="Each group becomes one Clockify entry"
+                  />
+                  <MergeReviewStat
+                    label="Rows being merged"
+                    value={String(mergeReviewSummary.mergedRowCount)}
+                    detail="Original Outlook rows in duplicate sets"
+                  />
+                  <MergeReviewStat
+                    label="Merged hours"
+                    value={String(mergeReviewSummary.mergedHours)}
+                    detail="Editable total that will be submitted"
+                  />
+                  <MergeReviewStat
+                    label="Unchanged rows"
+                    value={String(mergeReviewSummary.directRowCount)}
+                    detail="Ready rows that will push as-is"
+                  />
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-3 px-4 py-4 sm:px-5">
+              {mergeReviewState.mergedEntries.map((entry) => {
+                const issues = getMergeReviewIssues(entry);
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="overflow-hidden rounded-none border border-border/80 bg-background shadow-[0_12px_32px_rgba(18,12,24,0.10)]"
+                  >
+                    <div className="border-b border-border/70 bg-card px-3 py-3 sm:px-4">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge
+                              variant="secondary"
+                              className="h-6 rounded-none border border-primary bg-primary px-2.5 text-[10px] text-primary-foreground"
+                            >
+                              {entry.projectName}
+                            </Badge>
+                            <Badge
+                              variant="secondary"
+                              className="h-6 rounded-none border border-border bg-secondary px-2.5 text-[10px] text-foreground"
+                            >
+                              {entry.taskName || "No task"}
+                            </Badge>
+                            <Badge
+                              variant="secondary"
+                              className="h-6 rounded-none border border-border bg-background px-2.5 text-[10px] text-muted-foreground"
+                            >
+                              {entry.sourceRows.length} source row
+                              {entry.sourceRows.length === 1 ? "" : "s"}
+                            </Badge>
+                          </div>
+                          <h4 className="mt-2 text-lg font-semibold text-foreground">
+                            Final Clockify entry
+                          </h4>
+                          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+                            {formatDateTime(entry.start)} -{" "}
+                            {formatDateTime(entry.end)}
+                          </p>
+                          {entry.spansMultipleDays ? (
+                            <p className="mt-1.5 text-[13px] leading-5 text-accent">
+                              This merge spans multiple Outlook dates. Double-check
+                              the total hours and final wording.
+                            </p>
+                          ) : (
+                            <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
+                              Review the combined description, then push one
+                              consolidated entry to Clockify.
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[320px]">
+                          <div className="rounded-none border border-border/70 bg-background px-3 py-2.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                              Merged hours
+                            </p>
+                            <Input
+                              type="number"
+                              min="0.25"
+                              step="0.25"
+                              value={entry.hours > 0 ? String(entry.hours) : ""}
+                              onChange={(event) =>
+                                handleMergeReviewHoursChange(
+                                  entry.id,
+                                  event.target.value,
+                                )
+                              }
+                              className="mt-1.5 h-9 rounded-none border-border bg-card text-sm shadow-none"
+                            />
+                          </div>
+                          <div className="rounded-none border border-border/70 bg-background px-3 py-2.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                              Result
+                            </p>
+                            <p className="mt-1.5 text-sm font-semibold text-foreground">
+                              1 Clockify entry
+                            </p>
+                            <p className="mt-1 text-[12px] leading-4 text-muted-foreground">
+                              Replaces {entry.sourceRows.length} duplicate row
+                              {entry.sourceRows.length === 1 ? "" : "s"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] xl:p-4">
+                      <div className="min-w-0 rounded-none border border-border/70 bg-card p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              Source rows
+                            </p>
+                            <p className="mt-1 text-[12px] leading-4 text-muted-foreground">
+                              Original Outlook details included in this merge.
+                            </p>
+                          </div>
+                          <Badge
+                            variant="secondary"
+                            className="h-6 rounded-none border border-border bg-secondary px-2.5 py-0 text-[10px] text-foreground"
+                          >
+                            {entry.sourceRows.length} rows
+                          </Badge>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {entry.sourceRows.map((row) => (
+                            <div
+                              key={row.id}
+                              className="min-w-0 rounded-none border border-border/70 bg-background px-2.5 py-2.5"
+                            >
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <p
+                                    className="truncate text-[13px] font-semibold text-foreground"
+                                    title={row.sourceTitle}
+                                  >
+                                    {row.sourceTitle}
+                                  </p>
+                                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                                    {formatDateTime(row.start)} -{" "}
+                                    {formatDateTime(row.end)}
+                                  </p>
+                                </div>
+                                <Badge
+                                  variant="secondary"
+                                  className="h-6 w-fit rounded-none border border-border bg-card px-2.5 py-0 text-[10px] text-foreground"
+                                >
+                                  {formatHoursLabel(row.hours)}
+                                </Badge>
+                              </div>
+                              {row.description.trim() ? (
+                                <div className="mt-2 max-h-24 overflow-y-auto rounded-none border border-border/60 bg-card px-2.5 py-2">
+                                  <p className="whitespace-pre-wrap text-[11px] leading-4 text-muted-foreground [overflow-wrap:anywhere] [word-break:break-word]">
+                                    {row.description.trim()}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="mt-2 text-[11px] text-muted-foreground">
+                                  No description on this source row.
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0 rounded-none border border-border/70 bg-card p-3">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <Label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              Final merged description
+                            </Label>
+                            <p className="mt-1 text-[12px] leading-4 text-muted-foreground">
+                              This is the exact description that Clockify will receive.
+                            </p>
+                          </div>
+                          <Badge
+                            variant={issues.length > 0 ? "accent" : "secondary"}
+                            className="mt-2 h-6 w-fit rounded-none border px-2.5 py-0 text-[10px] sm:mt-0"
+                          >
+                            {issues.length > 0 ? "Needs attention" : "Ready to submit"}
+                          </Badge>
+                        </div>
+                        <textarea
+                          wrap="soft"
+                          spellCheck={false}
+                          value={entry.description}
+                          onChange={(event) =>
+                            handleMergeReviewDescriptionChange(
+                              entry.id,
+                              event.target.value,
+                            )
+                          }
+                          rows={10}
+                          className="mt-3 min-h-[240px] w-full resize-y rounded-none border border-border/80 bg-background px-3 py-3 text-[13px] leading-5 text-foreground outline-none transition-colors placeholder:text-muted-foreground [overflow-wrap:anywhere] [word-break:break-word] focus:border-primary/40"
+                          placeholder="Combine the duplicate descriptions here"
+                        />
+                        {issues.length > 0 ? (
+                          <div className="mt-2 rounded-none border border-accent bg-card px-3 py-2.5">
+                            {issues.map((issue) => (
+                              <p
+                                key={`${entry.id}-${issue}`}
+                                className="text-[12px] leading-4 text-accent"
+                              >
+                                {issue}
+                              </p>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-2 rounded-none border border-border bg-background px-3 py-2.5">
+                            <p className="text-[12px] leading-4 text-muted-foreground">
+                              This merged entry will replace the duplicate rows
+                              in the Clockify push.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="sticky bottom-0 border-t border-border/80 bg-card px-4 py-3 sm:px-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-foreground">
+                    {mergeReviewState.directRows.length} other reviewed row
+                    {mergeReviewState.directRows.length === 1 ? "" : "s"} will
+                    be pushed unchanged.
+                  </p>
+                  <p className="mt-1 text-[12px] leading-4 text-muted-foreground">
+                    Submit the merged entries only when every group shows as ready.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-none px-4"
+                    disabled={isSubmitting}
+                    onClick={() => setMergeReviewState(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-9 rounded-none px-4"
+                    disabled={
+                      isSubmitting ||
+                      mergeReviewState.mergedEntries.some(
+                        (entry) => getMergeReviewIssues(entry).length > 0,
+                      )
+                    }
+                    onClick={handleMergeReviewSubmit}
+                  >
+                    {isSubmitting ? "Submitting..." : "Push merged entries"}
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1527,6 +1985,182 @@ function getEventKey(event: OutlookEvent) {
   return event.outlookEventId ?? `${event.title}-${event.start}-${event.end}`;
 }
 
+function buildMergeReviewState(
+  rows: ReviewedSyncRow[],
+  projectById: Map<string, ClockifyProject>,
+) {
+  const rowsByProjectTask = new Map<string, ReviewedSyncRow[]>();
+
+  for (const row of rows) {
+    const key = getProjectTaskKey(row.projectId, row.taskId);
+    const existing = rowsByProjectTask.get(key);
+
+    if (existing) {
+      existing.push(row);
+    } else {
+      rowsByProjectTask.set(key, [row]);
+    }
+  }
+
+  const directRows: ReviewedSyncRow[] = [];
+  const mergedEntries: MergeReviewEntry[] = [];
+  const mergedKeys = new Set<string>();
+
+  for (const row of rows) {
+    const key = getProjectTaskKey(row.projectId, row.taskId);
+    const groupedRows = rowsByProjectTask.get(key) ?? [row];
+
+    if (groupedRows.length === 1) {
+      directRows.push(row);
+      continue;
+    }
+
+    if (mergedKeys.has(key)) {
+      continue;
+    }
+
+    mergedEntries.push(buildMergeReviewEntry(groupedRows, projectById));
+    mergedKeys.add(key);
+  }
+
+  return mergedEntries.length > 0
+    ? {
+        directRows,
+        mergedEntries,
+      }
+    : null;
+}
+
+function buildMergeReviewEntry(
+  rows: ReviewedSyncRow[],
+  projectById: Map<string, ClockifyProject>,
+): MergeReviewEntry {
+  const sortedRows = [...rows].sort(
+    (left, right) =>
+      new Date(left.start).getTime() - new Date(right.start).getTime(),
+  );
+  const firstRow = sortedRows[0];
+  const totalHours = roundHours(
+    sortedRows.reduce((sum, row) => sum + row.hours, 0),
+  );
+  const project = projectById.get(firstRow.projectId);
+  const task = project?.tasks.find((item) => item.taskId === firstRow.taskId);
+
+  return {
+    id: `merge-${getProjectTaskKey(firstRow.projectId, firstRow.taskId)}`,
+    title: buildMergedTitle(sortedRows),
+    projectId: firstRow.projectId,
+    projectName: firstRow.projectName ?? project?.projectName ?? "Project",
+    taskId: firstRow.taskId,
+    taskName: firstRow.taskName ?? task?.taskName ?? "",
+    start: firstRow.start,
+    end: getEndFromStartAndHours(firstRow.start, totalHours),
+    hours: totalHours,
+    description: buildMergedDescription(sortedRows),
+    sourceRows: sortedRows,
+    spansMultipleDays: new Set(
+      sortedRows.map((row) => toUtcMinus7DateTimeLocalValue(row.start).slice(0, 10)),
+    ).size > 1,
+  };
+}
+
+function getProjectTaskKey(projectId: string, taskId: string) {
+  return `${projectId}::${taskId || "__no_task__"}`;
+}
+
+function buildMergedTitle(rows: ReviewedSyncRow[]) {
+  const uniqueTitles = Array.from(
+    new Set(rows.map((row) => row.sourceTitle.trim()).filter(Boolean)),
+  );
+
+  if (uniqueTitles.length === 0) {
+    return "Merged Outlook rows";
+  }
+
+  if (uniqueTitles.length === 1) {
+    return uniqueTitles[0];
+  }
+
+  return `${uniqueTitles[0]} +${uniqueTitles.length - 1} more`;
+}
+
+function buildMergedDescription(rows: ReviewedSyncRow[]) {
+  const sections = rows
+    .map((row) => {
+      const cleanTitle = row.sourceTitle.trim();
+      const cleanDescription = row.description.trim();
+
+      if (!cleanTitle && !cleanDescription) {
+        return "";
+      }
+
+      if (
+        cleanTitle &&
+        cleanDescription &&
+        normalizeWhitespace(cleanTitle) !== normalizeWhitespace(cleanDescription)
+      ) {
+        return `${cleanTitle}\n${cleanDescription}`;
+      }
+
+      return cleanDescription || cleanTitle;
+    })
+    .filter(Boolean);
+
+  return Array.from(new Set(sections)).join("\n\n");
+}
+
+function getMergeReviewIssues(entry: MergeReviewEntry) {
+  const issues: string[] = [];
+
+  if (!Number.isFinite(entry.hours) || entry.hours <= 0) {
+    issues.push("Merged hours must be greater than zero.");
+  }
+
+  const startTime = new Date(entry.start).getTime();
+  const endTime = new Date(entry.end).getTime();
+
+  if (
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(endTime) ||
+    endTime <= startTime
+  ) {
+    issues.push("Merged time range is invalid.");
+  }
+
+  if (!entry.description.trim()) {
+    issues.push("Merged description cannot be empty.");
+  }
+
+  return issues;
+}
+
+function mapReviewedRowToPushEntry(row: ReviewedSyncRow): ClockifyPushEntry {
+  return {
+    title: row.sourceTitle,
+    description: row.description,
+    start: row.start,
+    end: row.end,
+    projectId: row.projectId,
+    ...(row.taskId ? { taskId: row.taskId } : {}),
+    billable: true,
+    outlookEventId: row.outlookEventId,
+  };
+}
+
+function mapMergeReviewEntryToPushEntry(
+  entry: MergeReviewEntry,
+): ClockifyPushEntry {
+  return {
+    title: entry.title,
+    description: entry.description,
+    start: entry.start,
+    end: entry.end,
+    projectId: entry.projectId,
+    ...(entry.taskId ? { taskId: entry.taskId } : {}),
+    billable: true,
+  };
+}
+
 function splitTitle(title: string) {
   if (!title.includes(":")) {
     return [title.trim(), ""] as const;
@@ -1568,6 +2202,28 @@ function findFirstMatchingRule(
 
       return false;
     }) ?? null
+  );
+}
+
+function MergeReviewStat({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-none border border-border/70 bg-background px-3 py-2.5 shadow-[0_8px_20px_rgba(18,12,24,0.10)]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+        {label}
+      </p>
+      <p className="mt-1.5 text-[1.3rem] font-semibold leading-none tracking-[-0.05em] text-foreground">
+        {value}
+      </p>
+      <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">{detail}</p>
+    </div>
   );
 }
 
@@ -1672,6 +2328,14 @@ function getDescriptionPreview(value: string) {
   return normalized.length > 56
     ? `${normalized.slice(0, 56).trimEnd()}...`
     : normalized;
+}
+
+function normalizeWhitespace(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function formatHoursLabel(value: number) {
+  return `${roundHours(value)} hour${roundHours(value) === 1 ? "" : "s"}`;
 }
 
 function getErrorMessage(exc: unknown) {
