@@ -337,7 +337,7 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="app-page-shell">
       <section>
         <Card className="overflow-hidden rounded-none border border-border/80 bg-card/95 shadow-[0_10px_24px_rgba(20,14,28,0.22)] backdrop-blur-md">
           <CardContent className="p-0">

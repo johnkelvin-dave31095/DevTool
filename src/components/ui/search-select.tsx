@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Search } from "lucide-react";
+import { Check, ChevronDown, Copy, Search } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 
@@ -18,6 +18,7 @@ type SearchSelectProps = {
   emptyResultsLabel: string;
   disabled?: boolean;
   className?: string;
+  allowCopySelected?: boolean;
 };
 
 type DropdownPosition = {
@@ -41,6 +42,7 @@ export function SearchSelect({
   emptyResultsLabel,
   disabled = false,
   className,
+  allowCopySelected = false,
 }: SearchSelectProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
@@ -49,6 +51,7 @@ export function SearchSelect({
   const [isOpen, setIsOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [position, setPosition] = React.useState<DropdownPosition | null>(null);
+  const [isCopied, setIsCopied] = React.useState(false);
 
   const selectedOption = React.useMemo(
     () => options.find((option) => option.value === value),
@@ -66,6 +69,8 @@ export function SearchSelect({
       option.label.toLowerCase().includes(normalizedQuery),
     );
   }, [options, query]);
+
+  const copyText = value ? selectedOption?.label?.trim() ?? "" : "";
 
   const updatePosition = React.useCallback(() => {
     if (!triggerRef.current) {
@@ -145,6 +150,20 @@ export function SearchSelect({
     }
   }, [disabled, isOpen]);
 
+  React.useEffect(() => {
+    if (!isCopied) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsCopied(false);
+    }, 1500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isCopied]);
+
   function handleSelect(nextValue: string) {
     onChange(nextValue);
     setIsOpen(false);
@@ -159,11 +178,40 @@ export function SearchSelect({
     }
   }
 
+  async function handleCopySelected() {
+    if (!copyText) {
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(copyText);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = copyText;
+        input.setAttribute("readonly", "true");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        document.body.removeChild(input);
+      }
+
+      setIsCopied(true);
+    } catch {
+      setIsCopied(false);
+    }
+  }
+
   const triggerLabel = selectedOption?.label ?? placeholder;
 
   return (
     <>
-      <div ref={containerRef} className={cn("relative", className)}>
+      <div
+        ref={containerRef}
+        className={cn("relative flex items-center gap-2", className)}
+      >
         <button
           ref={triggerRef}
           type="button"
@@ -176,7 +224,7 @@ export function SearchSelect({
           }}
           disabled={disabled}
           className={cn(
-            "flex h-9 w-full items-center justify-between gap-2 rounded-none border border-input bg-background px-3 text-left text-sm text-foreground opacity-100 shadow-none transition-colors",
+            "flex h-9 min-w-0 flex-1 items-center justify-between gap-2 rounded-none border border-input bg-background px-3 text-left text-sm text-foreground opacity-100 shadow-none transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50",
             !selectedOption && "text-muted-foreground",
           )}
@@ -191,6 +239,21 @@ export function SearchSelect({
             )}
           />
         </button>
+        {allowCopySelected && copyText ? (
+          <button
+            type="button"
+            onClick={handleCopySelected}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-none border border-input bg-background text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={isCopied ? "Project copied" : "Copy selected project"}
+            title={isCopied ? "Copied" : "Copy selected project"}
+          >
+            {isCopied ? (
+              <Check className="h-4 w-4 text-primary" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </button>
+        ) : null}
       </div>
       {isOpen && position
         ? createPortal(

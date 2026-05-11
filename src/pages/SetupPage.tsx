@@ -51,7 +51,7 @@ export function SetupPage({
 
   return (
     <div className="app-shell min-h-screen px-6 py-10 text-foreground sm:px-10">
-      <div className="mx-auto max-w-4xl">
+      <div className="w-full">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
             <span>Settings</span>

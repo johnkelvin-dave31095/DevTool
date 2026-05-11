@@ -111,6 +111,10 @@ textarea {
     background: var(--app-shell-image);
   }
 
+  .app-page-shell {
+    @apply flex w-full max-w-none flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8;
+  }
+
   .app-hero-surface {
     background: var(--hero-surface-image);
   }

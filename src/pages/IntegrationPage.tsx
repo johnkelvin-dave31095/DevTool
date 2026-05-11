@@ -514,7 +514,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="app-page-shell">
       <section>
         <Card className="overflow-hidden rounded-none border border-border/80 bg-card/95 shadow-[0_10px_24px_rgba(20,14,28,0.22)] backdrop-blur-md">
           <CardContent className="p-0">
@@ -695,8 +695,8 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                     <table className="w-full table-fixed border-collapse bg-background text-sm">
                     <colgroup>
                       <col className="w-[6.5%]" />
-                      <col className="w-[19%]" />
-                      <col className="w-[16%]" />
+                      <col className="w-[13.3%]" />
+                      <col className="w-[21.7%]" />
                       <col className="w-[14%]" />
                       <col className="w-[8%]" />
                       <col className="w-[17.5%]" />
@@ -1062,6 +1062,7 @@ function SyncReviewRow({
           value={row.projectId}
           onChange={onProjectChange}
           disabled={!row.include}
+          allowCopySelected
           placeholder="Select project"
           searchPlaceholder="Search projects..."
           emptyResultsLabel="No projects found."
