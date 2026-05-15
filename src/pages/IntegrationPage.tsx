@@ -24,6 +24,7 @@ import {
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { SearchSelect } from "../components/ui/search-select";
+import { Switch } from "../components/ui/switch";
 import {
   ApiError,
   CLOCKIFY_SYNC_URL,
@@ -137,6 +138,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
   const [toast, setToast] = useState<AppToast | null>(null);
   const [descriptionMode, setDescriptionMode] =
     useState<DescriptionMode>("body");
+  const [mergeDuplicatesEnabled, setMergeDuplicatesEnabled] = useState(true);
   const [mergeReviewState, setMergeReviewState] =
     useState<MergeReviewState | null>(null);
 
@@ -207,26 +209,6 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
   const isBusy = isPreparingReview || isSubmitting;
   const allRowsIncluded =
     reviewedRows.length > 0 && reviewedRows.every((row) => row.include);
-
-  const syncStatus = useMemo(() => {
-    if (isPreparingReview) {
-      return { label: "Building review", variant: "secondary" as const };
-    }
-
-    if (isSubmitting) {
-      return { label: "Pushing to Clockify", variant: "secondary" as const };
-    }
-
-    if (summary.errorCount > 0 || summary.needsReviewCount > 0 || error) {
-      return { label: "Needs review", variant: "accent" as const };
-    }
-
-    if (summary.readyCount > 0) {
-      return { label: "Ready to push", variant: "default" as const };
-    }
-
-    return { label: "Ready", variant: "default" as const };
-  }, [error, isPreparingReview, isSubmitting, summary]);
 
   async function handlePrepareReview() {
     setError(null);
@@ -319,12 +301,14 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
       return;
     }
 
-    const mergeReview = buildMergeReviewState(rowsToSubmit, projectById);
+    if (mergeDuplicatesEnabled) {
+      const mergeReview = buildMergeReviewState(rowsToSubmit, projectById);
 
-    if (mergeReview) {
-      setError(null);
-      setMergeReviewState(mergeReview);
-      return;
+      if (mergeReview) {
+        setError(null);
+        setMergeReviewState(mergeReview);
+        return;
+      }
     }
 
     const confirmed = window.confirm(
@@ -651,37 +635,16 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
       <section>
         <Card className="overflow-hidden rounded-none border border-border/80 bg-card/95 shadow-[0_10px_24px_rgba(20,14,28,0.22)] backdrop-blur-md">
           <CardContent className="p-0">
-            <div className="flex flex-col xl:flex-row xl:items-stretch">
-              <div className="min-w-0 px-4 py-3 xl:flex-1">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge
-                      variant="secondary"
-                      className="h-6 border border-primary/15 bg-primary/10 px-2.5 text-[10px] text-foreground"
-                    >
-                      {syncStatus.label}
-                    </Badge>
-                    <Badge className="h-6 bg-primary/12 px-2.5 text-[10px] text-primary">
-                      Premium sync
-                    </Badge>
-                    <Badge className="h-6 bg-secondary/55 px-2.5 text-[10px] text-foreground">
-                      UTC-7 window
-                    </Badge>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <h1 className="font-studio text-[2rem] font-semibold leading-none tracking-[-0.04em] text-foreground">
-                      Outlook to Clockify
-                    </h1>
-                  </div>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                    Review Outlook events, resolve matches, and push a clean batch to Clockify.
-                  </p>
-                </div>
+            <div className="flex flex-col xl:flex-row xl:items-center">
+              <div className="min-w-0 px-4 py-4 xl:flex-1">
+                <h1 className="font-studio text-[2rem] font-semibold leading-none tracking-[-0.04em] text-foreground">
+                  Outlook to Clockify
+                </h1>
               </div>
 
-              <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
+              <div className="hidden" />
 
-              <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 xl:min-w-[360px] xl:grid-cols-2 xl:items-center">
+              <div className="grid gap-2 px-4 py-4 sm:grid-cols-2 xl:min-w-[360px] xl:grid-cols-2 xl:items-center">
                 <StudioField label="Start">
                   <Input
                     id="start-date"
@@ -704,7 +667,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
 
               <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
 
-              <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 xl:min-w-[320px] xl:grid-cols-2 xl:items-center">
+              <div className="hidden gap-2 px-4 py-3 sm:grid-cols-2 xl:min-w-[320px] xl:grid-cols-2 xl:items-center">
                 <InlineStat label="Draft" value={String(reviewedRows.length)} />
                 <span className="text-primary/35">•</span>
                 <InlineStat label="Ready" value={String(summary.readyCount)} />
@@ -718,7 +681,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
 
               <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
 
-              <div className="px-4 py-3 xl:flex xl:min-w-[190px] xl:items-center xl:justify-center">
+              <div className="px-4 py-4 xl:flex xl:min-w-[190px] xl:items-center xl:justify-center">
                 <Button
                   onClick={handlePrepareReview}
                   disabled={isPreparingReview || isSubmitting}
@@ -774,8 +737,8 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-start gap-3 xl:justify-end">
-                  <div className="border border-border/80 bg-background/90 px-4 py-3 shadow-[0_6px_18px_rgba(18,12,24,0.08)]">
+                <div className="flex flex-wrap items-stretch gap-3 xl:justify-end">
+                  <div className="flex min-h-[68px] border border-border/80 bg-background/90 px-4 py-3 shadow-[0_6px_18px_rgba(18,12,24,0.08)]">
                     <div className="flex self-stretch">
                       <div className="flex items-center pr-4">
                         <label className="inline-flex items-center gap-3 text-[15px] text-foreground">
@@ -812,6 +775,30 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                         />
                       </div>
                     </div>
+                  </div>
+
+                  <div className="flex min-h-[68px] items-center gap-3 border border-border/80 bg-background/90 px-4 py-3 shadow-[0_6px_18px_rgba(18,12,24,0.08)]">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
+                        Merge same-day duplicate rows
+                      </p>
+                      <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
+                        {mergeDuplicatesEnabled
+                          ? "On: only rows with the same project, task, and day are grouped for review."
+                          : "Off: push rows directly like before."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={mergeDuplicatesEnabled}
+                      onCheckedChange={(checked) => {
+                        setMergeDuplicatesEnabled(checked);
+
+                        if (!checked) {
+                          setMergeReviewState(null);
+                        }
+                      }}
+                      label="Toggle merge review for duplicate Clockify project and task rows on the same day"
+                    />
                   </div>
 
                 </div>
@@ -1060,12 +1047,13 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                     </Badge>
                   </div>
                   <h3 className="mt-2 font-studio text-[1.65rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[1.9rem]">
-                    Merge duplicate Clockify rows
+                    Merge same-day duplicate Clockify rows
                   </h3>
                   <p className="mt-1.5 max-w-3xl text-[13px] leading-5 text-muted-foreground">
-                    Duplicate project and task combinations are grouped here so
-                    we can send a single clean Clockify entry. Adjust the merged
-                    hours or description wherever needed before submitting.
+                    Duplicate project and task combinations are grouped here
+                    only when they land on the same day, so we can send a
+                    single clean Clockify entry. Adjust the merged hours or
+                    description wherever needed before submitting.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1992,7 +1980,7 @@ function buildMergeReviewState(
   const rowsByProjectTask = new Map<string, ReviewedSyncRow[]>();
 
   for (const row of rows) {
-    const key = getProjectTaskKey(row.projectId, row.taskId);
+    const key = getProjectTaskDayKey(row.projectId, row.taskId, row.start);
     const existing = rowsByProjectTask.get(key);
 
     if (existing) {
@@ -2007,7 +1995,7 @@ function buildMergeReviewState(
   const mergedKeys = new Set<string>();
 
   for (const row of rows) {
-    const key = getProjectTaskKey(row.projectId, row.taskId);
+    const key = getProjectTaskDayKey(row.projectId, row.taskId, row.start);
     const groupedRows = rowsByProjectTask.get(key) ?? [row];
 
     if (groupedRows.length === 1) {
@@ -2047,7 +2035,11 @@ function buildMergeReviewEntry(
   const task = project?.tasks.find((item) => item.taskId === firstRow.taskId);
 
   return {
-    id: `merge-${getProjectTaskKey(firstRow.projectId, firstRow.taskId)}`,
+    id: `merge-${getProjectTaskDayKey(
+      firstRow.projectId,
+      firstRow.taskId,
+      firstRow.start,
+    )}`,
     title: buildMergedTitle(sortedRows),
     projectId: firstRow.projectId,
     projectName: firstRow.projectName ?? project?.projectName ?? "Project",
@@ -2066,6 +2058,16 @@ function buildMergeReviewEntry(
 
 function getProjectTaskKey(projectId: string, taskId: string) {
   return `${projectId}::${taskId || "__no_task__"}`;
+}
+
+function getUtcMinus7DayKey(value: string) {
+  const localValue = toUtcMinus7DateTimeLocalValue(value);
+
+  return localValue ? localValue.slice(0, 10) : "invalid-date";
+}
+
+function getProjectTaskDayKey(projectId: string, taskId: string, start: string) {
+  return `${getProjectTaskKey(projectId, taskId)}::${getUtcMinus7DayKey(start)}`;
 }
 
 function buildMergedTitle(rows: ReviewedSyncRow[]) {

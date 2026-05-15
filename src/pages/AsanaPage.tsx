@@ -145,26 +145,6 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
   const allRowsIncluded =
     reviewedRows.length > 0 && reviewedRows.every((row) => row.include);
 
-  const asanaStatus = useMemo(() => {
-    if (isLoading) {
-      return { label: "Building review", variant: "secondary" as const };
-    }
-
-    if (isSubmitting) {
-      return { label: "Pushing to Clockify", variant: "secondary" as const };
-    }
-
-    if (summary.errorCount > 0 || summary.needsReviewCount > 0 || error) {
-      return { label: "Needs review", variant: "accent" as const };
-    }
-
-    if (summary.readyCount > 0) {
-      return { label: "Ready", variant: "default" as const };
-    }
-
-    return { label: "Ready", variant: "default" as const };
-  }, [error, isLoading, isSubmitting, summary]);
-
   async function handleLoadTickets() {
     setError(null);
     setIsLoading(true);
@@ -341,34 +321,16 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
       <section>
         <Card className="overflow-hidden rounded-none border border-border/80 bg-card/95 shadow-[0_10px_24px_rgba(20,14,28,0.22)] backdrop-blur-md">
           <CardContent className="p-0">
-            <div className="flex flex-col xl:flex-row xl:items-stretch">
-              <div className="min-w-0 px-4 py-3 xl:flex-1">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge
-                      variant={asanaStatus.variant}
-                      className="h-6 border border-primary/15 bg-primary/10 px-2.5 text-[10px] text-foreground"
-                    >
-                      {asanaStatus.label}
-                    </Badge>
-                    <Badge className="h-6 bg-primary/12 px-2.5 text-[10px] text-primary">
-                      Asana review
-                    </Badge>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <h1 className="font-studio text-[2rem] font-semibold leading-none tracking-[-0.04em] text-foreground">
-                      Asana Completed Tickets
-                    </h1>
-                  </div>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                    Load completed Asana work, review project and task mappings, then push the final batch to Clockify.
-                  </p>
-                </div>
+            <div className="flex flex-col xl:flex-row xl:items-center">
+              <div className="min-w-0 px-4 py-4 xl:flex-1">
+                <h1 className="font-studio text-[2rem] font-semibold leading-none tracking-[-0.04em] text-foreground">
+                  Asana Completed Tickets
+                </h1>
               </div>
 
               <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
 
-              <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 xl:min-w-[360px] xl:grid-cols-2 xl:items-center">
+              <div className="grid gap-2 px-4 py-4 sm:grid-cols-2 xl:min-w-[360px] xl:grid-cols-2 xl:items-center">
                 <StudioField label="Start">
                   <Input
                     type="date"
@@ -389,21 +351,9 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
 
               <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
 
-              <div className="grid gap-2 px-4 py-3 sm:grid-cols-2 xl:min-w-[320px] xl:grid-cols-2 xl:items-center">
-                <InlineStat label="Draft" value={String(summary.total)} />
-                <span className="text-primary/35">•</span>
-                <InlineStat label="Ready" value={String(summary.readyCount)} />
-                <span className="text-primary/35">•</span>
-                <InlineStat
-                  label="Review"
-                  value={String(summary.needsReviewCount + summary.errorCount)}
-                />
-                <InlineStat label="Included" value={String(summary.includedCount)} />
-              </div>
-
               <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
 
-              <div className="px-4 py-3 xl:flex xl:min-w-[190px] xl:items-center xl:justify-center">
+              <div className="px-4 py-4 xl:flex xl:min-w-[190px] xl:items-center xl:justify-center">
                 <Button
                   onClick={handleLoadTickets}
                   disabled={isLoading}
@@ -1093,19 +1043,6 @@ function DescriptionPartOption({
       />
       <span>{label}</span>
     </label>
-  );
-}
-
-function InlineStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[hsl(var(--muted-foreground))]">
-        {label}
-      </span>
-      <span className="text-lg font-semibold tracking-[-0.03em] text-foreground">
-        {value}
-      </span>
-    </div>
   );
 }
 
