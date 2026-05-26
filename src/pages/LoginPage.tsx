@@ -60,7 +60,7 @@ export function LoginPage({
   }
 
   const loginPanel = (
-    <div className="overflow-hidden border border-[rgba(205,182,233,0.22)] bg-[rgba(39,28,48,0.58)] shadow-[0_30px_90px_rgba(18,12,24,0.44)] backdrop-blur-2xl">
+    <div className="overflow-hidden rounded-[14px] border border-[rgba(205,182,233,0.22)] bg-[rgba(39,28,48,0.58)] shadow-[0_30px_90px_rgba(18,12,24,0.44)] backdrop-blur-2xl">
       <div className="px-5 py-5">
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">

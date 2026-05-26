@@ -474,7 +474,7 @@ export default function App() {
     );
   }
 
-  if (setupState === "needs_setup" || isEditingSetup) {
+  if (isEditingSetup) {
     return (
       <SetupPage
         email={currentEmail}

@@ -103,7 +103,7 @@ export function NewLoginPage({
           </section>
 
           <section className="relative flex items-center justify-center">
-            <div className="w-full max-w-md overflow-hidden border border-[rgba(171,197,255,0.22)] bg-[linear-gradient(180deg,rgba(246,248,255,0.92),rgba(225,233,255,0.78))] text-[#09111f] shadow-[0_32px_120px_rgba(2,7,18,0.48)] backdrop-blur-2xl">
+            <div className="w-full max-w-md overflow-hidden rounded-[14px] border border-[rgba(171,197,255,0.22)] bg-[linear-gradient(180deg,rgba(246,248,255,0.92),rgba(225,233,255,0.78))] text-[#09111f] shadow-[0_32px_120px_rgba(2,7,18,0.48)] backdrop-blur-2xl">
               <div className="border-b border-[rgba(9,17,31,0.08)] px-6 py-5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#4f6fa8]">
                   Alternate login

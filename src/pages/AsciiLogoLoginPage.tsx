@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 
-import { AsciiLogoScene } from "../components/login/AsciiLogoScene";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+
+const AsciiLogoScene = lazy(async () => {
+  const module = await import("../components/login/AsciiLogoScene");
+  return { default: module.AsciiLogoScene };
+});
 
 type AsciiLogoLoginPageProps = {
   onLogin: (payload: {
@@ -51,7 +55,9 @@ export function AsciiLogoLoginPage({
       <div className="absolute inset-0 bg-[#05020b]" />
       <div className="relative z-10 grid h-full w-full lg:grid-cols-[1.2fr_0.8fr]">
         <section className="relative hidden h-full lg:block">
-          <AsciiLogoScene />
+          <Suspense fallback={null}>
+            <AsciiLogoScene />
+          </Suspense>
           <div className="pointer-events-none absolute bottom-8 left-10">
             <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-[rgba(143,116,255,0.72)]">
               drag to rotate
@@ -60,7 +66,7 @@ export function AsciiLogoLoginPage({
         </section>
 
         <section className="relative flex h-full items-center justify-center px-6 py-10 sm:px-8">
-          <div className="w-full max-w-md overflow-hidden border border-[rgba(120,84,255,0.2)] bg-[linear-gradient(180deg,rgba(10,7,18,0.9),rgba(6,4,12,0.86))] shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-xl">
+          <div className="w-full max-w-md overflow-hidden rounded-[14px] border border-[rgba(120,84,255,0.2)] bg-[linear-gradient(180deg,rgba(10,7,18,0.9),rgba(6,4,12,0.86))] shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-xl">
             <div className="border-b border-[rgba(120,84,255,0.14)] px-6 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8f74ff]">
                 Oaktech Systems

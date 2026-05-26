@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import Lottie from "lottie-react";
 import {
   ArrowRightLeft,
   CheckCircle2,
@@ -23,6 +22,7 @@ import {
 } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { LottieLight } from "../components/ui/lottie-light";
 import { SearchSelect } from "../components/ui/search-select";
 import { Switch } from "../components/ui/switch";
 import {
@@ -704,7 +704,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
           <div className="border-x border-b border-border/80 bg-card/92 px-3 py-2 shadow-[0_8px_18px_rgba(20,14,28,0.18)]">
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/12">
-                <Lottie
+                <LottieLight
                   animationData={clockTimeAnimation}
                   loop
                   className="h-9 w-9"
@@ -887,7 +887,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
                     >
                       {isSubmitting ? (
                         <span className="-my-2 flex h-9 w-9 items-center justify-center">
-                          <Lottie
+                          <LottieLight
                             animationData={clockTimeAnimation}
                             loop
                             className="h-9 w-9"
