@@ -83,6 +83,7 @@ export type ClockifyProject = {
 export type ClockifyListResponse = {
   action: "list";
   workspaceId: string;
+  timezone?: string;
   projectCount: number;
   taskCount: number;
   includeArchived: boolean;

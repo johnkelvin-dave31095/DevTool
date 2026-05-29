@@ -1,30 +1,14 @@
-import { useMemo, useState } from "react";
-import {
-  ArrowRightLeft,
-  CheckCircle2,
-  Clock3,
-  LoaderCircle,
-  Search,
-  TriangleAlert,
-  X,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, LoaderCircle, TriangleAlert, X } from "lucide-react";
 
-import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
+import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { SearchSelect } from "../components/ui/search-select";
+import { Select } from "../components/ui/select";
 import {
   ApiError,
   ASANA_TICKETS_URL,
-  AsanaTicketsResponse,
   CLOCKIFY_SYNC_URL,
   ClockifyListResponse,
   ClockifyProject,
@@ -33,12 +17,37 @@ import {
 } from "../lib/api";
 import { cn } from "../lib/utils";
 
-type ReviewStatus = "ready" | "needs_review" | "error" | "skipped";
-type DescriptionParts = {
-  link: boolean;
-  title: boolean;
-  section: boolean;
-  body: boolean;
+type SplitProject = {
+  id: string;
+  name: string;
+};
+
+type SplitProjectResponse = {
+  action: "listSplitProjects";
+  projects: SplitProject[];
+};
+
+type ClientOption = {
+  id: string;
+  label: string;
+  projectId: string;
+  projectName: string;
+};
+
+type SplitPlanEntry = {
+  order: number;
+  title: string;
+  description: string;
+  start: string;
+  end: string;
+  projectId: string;
+  taskId?: string | null;
+  splitHours: number;
+};
+
+type SplitPlanResponse = {
+  action: "planSplit";
+  entries: SplitPlanEntry[];
 };
 
 type AppToast = {
@@ -47,119 +56,47 @@ type AppToast = {
   tone: "success" | "warning";
 };
 
-type AsanaTaskRow = {
-  title?: string;
-  projects: string[];
-  section?: string[];
-  ticket_link?: string;
-  ticket_date_creation: string | null;
-  ticket_date_done: string | null;
-  description: string;
-};
-
-type AsanaDraftRow = {
-  id: string;
-  sourceLink: string;
-  sourceTitle: string;
-  sourceSection: string;
-  sourceBody: string;
-  createdAt: string | null;
-  doneAt: string | null;
-  include: boolean;
-  projectId: string;
-  taskId: string;
-  hours: number;
-  description: string;
-};
-
-type ReviewedAsanaRow = AsanaDraftRow & {
-  status: ReviewStatus;
-  projectName?: string;
-  taskName?: string;
-  issues: Array<{
-    tone: "warning" | "error";
-    message: string;
-  }>;
-};
+const PLANNING_TIMEZONE = "Asia/Manila";
+const DEFAULT_WORK_START_HOUR = 8;
 
 export function AsanaPage({ currentEmail }: { currentEmail: string }) {
-  const [startDate, setStartDate] = useState(getMonthStart());
-  const [endDate, setEndDate] = useState(getToday());
-  const [projects, setProjects] = useState<ClockifyProject[]>([]);
-  const [draftRows, setDraftRows] = useState<AsanaDraftRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [description, setDescription] = useState("");
+  const [workDate, setWorkDate] = useState(getToday());
+  const [totalHours, setTotalHours] = useState("");
+  const [selectedExtraProjectId, setSelectedExtraProjectId] = useState("");
+  const [defaultClients, setDefaultClients] = useState<ClientOption[]>([]);
+  const [extraClients, setExtraClients] = useState<ClientOption[]>([]);
+  const [clockifyProjects, setClockifyProjects] = useState<ClockifyProject[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<AppToast | null>(null);
-  const [descriptionParts, setDescriptionParts] = useState<DescriptionParts>({
-    link: false,
-    title: false,
-    section: false,
-    body: true,
-  });
-  const [activeDescriptionRowId, setActiveDescriptionRowId] = useState<
-    string | null
-  >(null);
 
-  const projectById = useMemo(
-    () => new Map(projects.map((project) => [project.projectId, project])),
-    [projects],
+  useEffect(() => {
+    void loadProjects();
+  }, [currentEmail]);
+
+  const allClients = useMemo(
+    () => [...defaultClients, ...extraClients],
+    [defaultClients, extraClients],
   );
 
-  const reviewedRows = useMemo(
-    () => draftRows.map((row) => validateRow(row, projectById)),
-    [draftRows, projectById],
-  );
+  const availableExtraProjects = useMemo(() => {
+    const selectedProjectIds = new Set(
+      allClients.map((client) => client.projectId),
+    );
 
-  const activeDescriptionRow = useMemo(
-    () => reviewedRows.find((row) => row.id === activeDescriptionRowId) ?? null,
-    [activeDescriptionRowId, reviewedRows],
-  );
+    return clockifyProjects
+      .filter((project) => !selectedProjectIds.has(project.projectId))
+      .sort((left, right) => left.projectName.localeCompare(right.projectName));
+  }, [allClients, clockifyProjects]);
 
-  const summary = useMemo(() => {
-    const readyCount = reviewedRows.filter(
-      (row) => row.status === "ready",
-    ).length;
-    const needsReviewCount = reviewedRows.filter(
-      (row) => row.status === "needs_review",
-    ).length;
-    const errorCount = reviewedRows.filter(
-      (row) => row.status === "error",
-    ).length;
-    const includedCount = reviewedRows.filter((row) => row.include).length;
-
-    return {
-      total: reviewedRows.length,
-      readyCount,
-      needsReviewCount,
-      errorCount,
-      includedCount,
-      canSubmit:
-        readyCount > 0 &&
-        needsReviewCount === 0 &&
-        errorCount === 0 &&
-        includedCount > 0,
-    };
-  }, [reviewedRows]);
-
-  const allRowsIncluded =
-    reviewedRows.length > 0 && reviewedRows.every((row) => row.include);
-
-  async function handleLoadTickets() {
-    setError(null);
+  async function loadProjects() {
     setIsLoading(true);
+    setError(null);
 
     try {
-      const [asanaData, catalog] = await Promise.all([
-        postJson<
-          AsanaTicketsResponse,
-          { email: string; start: string; end: string; limit: number }
-        >(ASANA_TICKETS_URL, {
-          email: currentEmail,
-          start: `${startDate}T00:00:00+08:00`,
-          end: `${endDate}T23:59:59+08:00`,
-          limit: 100,
-        }),
+      const [catalog, splitProjects] = await Promise.all([
         postJson<ClockifyListResponse, { action: "list"; email: string }>(
           CLOCKIFY_SYNC_URL,
           {
@@ -167,12 +104,18 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
             email: currentEmail,
           },
         ),
+        postJson<SplitProjectResponse, { action: "listSplitProjects" }>(
+          ASANA_TICKETS_URL,
+          {
+            action: "listSplitProjects",
+          },
+        ),
       ]);
 
-      setProjects(catalog.projects);
-      setDraftRows(
-        buildDraftRows(asanaData.tasks, catalog.projects, descriptionParts),
-      );
+      setClockifyProjects(catalog.projects);
+      setDefaultClients(buildClientOptions(splitProjects.projects, catalog.projects));
+      setExtraClients([]);
+      setSelectedExtraProjectId("");
     } catch (exc) {
       setError(getErrorMessage(exc));
     } finally {
@@ -180,30 +123,75 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
     }
   }
 
+  function handleAddExtraProject(projectId: string) {
+    if (!projectId) {
+      setError("Select a project.");
+      return;
+    }
+
+    const matchedProject =
+      clockifyProjects.find(
+        (project) => project.projectId === projectId,
+      ) ?? null;
+
+    if (!matchedProject) {
+      setError("Selected project was not found.");
+      return;
+    }
+
+    const nextClient: ClientOption = {
+      id: `extra-${matchedProject.projectId}`,
+      label: matchedProject.projectName,
+      projectId: matchedProject.projectId,
+      projectName: matchedProject.projectName,
+    };
+
+    const alreadyExists = allClients.some(
+      (client) => client.projectId === nextClient.projectId,
+    );
+
+    if (alreadyExists) {
+      setError(`Project already included: ${matchedProject.projectName}`);
+      return;
+    }
+
+    setExtraClients((current) => [...current, nextClient]);
+    setSelectedExtraProjectId("");
+    setError(null);
+  }
+
+  function handleRemoveExtraProject(clientId: string) {
+    setExtraClients((current) => current.filter((client) => client.id !== clientId));
+  }
+
   async function handlePushToClockify() {
-    const rowsToSubmit = reviewedRows.filter(
-      (row) => row.include && row.status === "ready",
-    );
+    const trimmedDescription = description.trim();
+    const parsedHours = parseHours(totalHours);
 
-    if (rowsToSubmit.length === 0) {
-      setError(
-        "Resolve the review table first. At least one included row must be ready.",
-      );
+    if (!trimmedDescription) {
+      setError("Enter a description.");
       return;
     }
 
-    if (!summary.canSubmit) {
-      setError(
-        "Fix or skip every row that still needs review before pushing to Clockify.",
-      );
+    if (!workDate) {
+      setError("Select a work date.");
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to push ${rowsToSubmit.length} reviewed row${rowsToSubmit.length === 1 ? "" : "s"} to Clockify?`,
-    );
+    if (!parsedHours) {
+      setError("Enter total hours greater than zero.");
+      return;
+    }
 
-    if (!confirmed) {
+    const endTime = resolveEndTime(parsedHours);
+
+    if (!endTime) {
+      setError("Total hours must stay within the selected Manila work day.");
+      return;
+    }
+
+    if (allClients.length === 0) {
+      setError("No projects available to split.");
       return;
     }
 
@@ -211,12 +199,46 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
     setIsSubmitting(true);
 
     try {
+      const plan = await postJson<
+        SplitPlanResponse,
+        {
+          action: "planSplit";
+          email: string;
+          description: string;
+          totalHours: number;
+          workDate: string;
+          endTime: string;
+          timezone: string;
+          clients: Array<{
+            clientLabel: string;
+            projectId: string;
+            projectName: string;
+          }>;
+        }
+      >(ASANA_TICKETS_URL, {
+        action: "planSplit",
+        email: currentEmail,
+        description: trimmedDescription,
+        totalHours: parsedHours,
+        workDate,
+        endTime,
+        timezone: PLANNING_TIMEZONE,
+        clients: allClients.map((client) => ({
+          clientLabel: client.label,
+          projectId: client.projectId,
+          projectName: client.projectName,
+        })),
+      });
+
       const data = await postJson<
         ClockifySyncResponse,
         {
-          action: "push";
+          action: "pushFrClockify";
           email: string;
+          workDate: string;
+          timezone: string;
           entries: Array<{
+            order: number;
             title: string;
             description: string;
             start: string;
@@ -224,19 +246,24 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
             projectId: string;
             taskId?: string;
             billable: boolean;
+            splitHours: number;
           }>;
         }
       >(CLOCKIFY_SYNC_URL, {
-        action: "push",
+        action: "pushFrClockify",
         email: currentEmail,
-        entries: rowsToSubmit.map((row) => ({
-          title: row.sourceTitle,
-          description: row.description,
-          start: getClockifyStart(row),
-          end: getClockifyEnd(row),
-          projectId: row.projectId,
-          ...(row.taskId ? { taskId: row.taskId } : {}),
+        workDate,
+        timezone: PLANNING_TIMEZONE,
+        entries: plan.entries.map((entry) => ({
+          order: entry.order,
+          title: entry.title,
+          description: entry.description,
+          start: entry.start,
+          end: entry.end,
+          projectId: entry.projectId,
+          ...(entry.taskId ? { taskId: entry.taskId } : {}),
           billable: true,
+          splitHours: entry.splitHours,
         })),
       });
 
@@ -260,7 +287,7 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
   function handleClockifyResult(data: ClockifySyncResponse) {
     if (data.createdCount > 0) {
       setToast({
-        title: "Push complete",
+        title: "Done",
         detail: `${data.createdCount} created, ${data.skippedCount} skipped.`,
         tone: data.skippedCount > 0 ? "warning" : "success",
       });
@@ -277,354 +304,124 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
     });
   }
 
-  function handleSetAllIncluded(include: boolean) {
-    setDraftRows((current) =>
-      current.map((row) => ({
-        ...row,
-        include,
-      })),
-    );
-  }
-
-  function updateDraftRow(
-    rowId: string,
-    updater: (row: AsanaDraftRow) => AsanaDraftRow,
-  ) {
-    setDraftRows((current) =>
-      current.map((row) => (row.id === rowId ? updater(row) : row)),
-    );
-  }
-
-  function handleDescriptionPartsChange(part: keyof DescriptionParts) {
-    const nextParts = {
-      ...descriptionParts,
-      [part]: !descriptionParts[part],
-    };
-
-    setDescriptionParts(nextParts);
-    setDraftRows((current) =>
-      current.map((row) => ({
-        ...row,
-        description: buildDescriptionFromParts(
-          row.sourceLink,
-          row.sourceTitle,
-          row.sourceSection,
-          row.sourceBody,
-          nextParts,
-        ),
-      })),
-    );
-  }
-
   return (
     <div className="app-page-shell">
-      <section>
-        <Card className="overflow-hidden rounded-none border border-border/80 bg-card/95 shadow-[0_10px_24px_rgba(20,14,28,0.22)] backdrop-blur-md">
-          <CardContent className="p-0">
-            <div className="flex flex-col xl:flex-row xl:items-center">
-              <div className="min-w-0 px-4 py-4 xl:flex-1">
-                <h1 className="font-studio text-[2rem] font-semibold leading-none tracking-[-0.04em] text-foreground">
-                  Asana Completed Tickets
-                </h1>
-              </div>
-
-              <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
-
-              <div className="grid gap-2 px-4 py-4 sm:grid-cols-2 xl:min-w-[360px] xl:grid-cols-2 xl:items-center">
-                <StudioField label="Start">
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(event) => setStartDate(event.target.value)}
-                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-background/80 text-foreground shadow-none"
-                  />
-                </StudioField>
-                <StudioField label="End">
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(event) => setEndDate(event.target.value)}
-                    className="h-9 rounded-xl border-[hsl(var(--border))] bg-background/80 text-foreground shadow-none"
-                  />
-                </StudioField>
-              </div>
-
-              <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
-
-              <div className="hidden w-px shrink-0 bg-border/80 xl:block" />
-
-              <div className="px-4 py-4 xl:flex xl:min-w-[190px] xl:items-center xl:justify-center">
-                <Button
-                  onClick={handleLoadTickets}
-                  disabled={isLoading}
-                  className="h-11 w-full rounded-full border-0 px-7 text-[15px] font-semibold shadow-[0_10px_24px_rgba(20,14,28,0.28)] xl:w-auto xl:min-w-[160px]"
-                >
-                  {isLoading ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4" />
-                  )}
-                  {draftRows.length > 0 && !isLoading
-                    ? "Refresh review"
-                    : "Load tickets"}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
       {error ? <PageAlert text={error} /> : null}
 
-      <section>
-        <Card className="overflow-hidden border-[hsl(var(--border))] bg-card/92 shadow-[0_22px_60px_rgba(20,14,28,0.24)]">
-          <CardHeader className="app-hero-surface border-b border-border/80 px-4 py-3">
-            <div className="flex flex-col gap-2 xl:flex-row xl:items-stretch xl:justify-between">
-              <div className="flex min-w-0 flex-col xl:flex-row xl:items-center xl:gap-3">
-                <div>
-                  <CardTitle className="font-studio shrink-0 text-3xl font-semibold tracking-[-0.04em] text-foreground">
-                    Review Table
-                  </CardTitle>
-                  <CardDescription className="mt-2">
-                    Check each completed ticket before pushing it to Clockify.
-                  </CardDescription>
-                </div>
+      <Card className="border-border/80 bg-card/95 shadow-none">
+        <CardContent className="space-y-5 pt-6">
+          <div className="rounded-[14px] border border-border/80 bg-background px-4 py-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="fr-clockify-date">Work Date</Label>
+                <Input
+                  id="fr-clockify-date"
+                  type="date"
+                  value={workDate}
+                  onChange={(event) => setWorkDate(event.target.value)}
+                  className="h-11 rounded-[14px]"
+                />
               </div>
 
-              <div className="flex self-stretch">
-                <div className="flex items-center pr-3">
-                  <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                    <input
-                      type="checkbox"
-                      checked={allRowsIncluded}
-                      onChange={(event) =>
-                        handleSetAllIncluded(event.target.checked)
-                      }
-                      className="h-4 w-4 border-border text-primary focus:ring-ring"
-                      disabled={reviewedRows.length === 0}
-                    />
-                    <span className="font-medium">Select all</span>
-                  </label>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="fr-clockify-hours">Total Hours</Label>
+                <Input
+                  id="fr-clockify-hours"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={totalHours}
+                  onChange={(event) => setTotalHours(event.target.value)}
+                  className="h-11 rounded-[14px]"
+                />
+              </div>
 
-                <div className="flex flex-wrap items-center gap-3 border-l border-border/80 pl-3">
-                  <DescriptionPartOption
-                    label="Link"
-                    checked={descriptionParts.link}
-                    onChange={() => handleDescriptionPartsChange("link")}
-                  />
-                  <DescriptionPartOption
-                    label="Title"
-                    checked={descriptionParts.title}
-                    onChange={() => handleDescriptionPartsChange("title")}
-                  />
-                  <DescriptionPartOption
-                    label="Section"
-                    checked={descriptionParts.section}
-                    onChange={() => handleDescriptionPartsChange("section")}
-                  />
-                  <DescriptionPartOption
-                    label="Description"
-                    checked={descriptionParts.body}
-                    onChange={() => handleDescriptionPartsChange("body")}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="fr-clockify-extra-project">Add Project</Label>
+                <Select
+                  id="fr-clockify-extra-project"
+                  value={selectedExtraProjectId}
+                  onChange={(event) => {
+                    const nextProjectId = event.target.value;
+                    setSelectedExtraProjectId(nextProjectId);
+
+                    if (nextProjectId) {
+                      handleAddExtraProject(nextProjectId);
+                    }
+                  }}
+                  className="h-11 rounded-[14px]"
+                >
+                  <option value="">Select project</option>
+                  {availableExtraProjects.map((project) => (
+                    <option key={project.projectId} value={project.projectId}>
+                      {project.projectName}
+                    </option>
+                  ))}
+                </Select>
               </div>
             </div>
-          </CardHeader>
 
-          <CardContent className="p-0">
-            <div className="overflow-hidden border border-border/80 bg-card/70">
-              <table className="w-full table-fixed border-collapse bg-background text-sm">
-                <colgroup>
-                  <col className="w-[96px]" />
-                  <col className="w-[208px]" />
-                  <col className="w-[110px]" />
-                  <col className="w-[90px]" />
-                  <col className="w-[154px]" />
-                  <col className="w-[161px]" />
-                  <col className="w-[120px]" />
-                  <col className="w-[168px]" />
-                  <col className="w-[240px]" />
-                </colgroup>
-                <thead className="app-table-head text-left">
-                  <tr className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                    <th className="px-3 py-3 font-semibold">Sync</th>
-                    <th className="border-l border-border/70 px-3 py-3 font-semibold">
-                      Source Event
-                    </th>
-                    <th className="border-l border-border/70 px-3 py-3 font-semibold">
-                      Ticket Link
-                    </th>
-                    <th className="border-l border-border/70 px-3 py-3 font-semibold">
-                      Section
-                    </th>
-                    <th className="border-l border-border/70 px-3 py-3 font-semibold">
-                      Project
-                    </th>
-                    <th className="border-l border-border/70 px-3 py-3 font-semibold">
-                      Task
-                    </th>
-                    <th className="border-l border-border/70 px-3 py-3 font-semibold">
-                      Hours
-                    </th>
-                    <th className="border-l border-border/70 px-3 py-3 font-semibold">
-                      Description
-                    </th>
-                    <th className="border-l border-border/70 px-3 py-3 font-semibold">
-                      State
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reviewedRows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={9}
-                        className="px-6 py-12 text-center text-sm text-muted-foreground"
-                      >
-                        Load Asana tickets to build the review table.
-                      </td>
-                    </tr>
-                  ) : (
-                    reviewedRows.map((row) => (
-                      <ReviewTableRow
-                        key={row.id}
-                        row={row}
-                        projects={projects}
-                        availableTasks={
-                          row.projectId
-                            ? (projectById.get(row.projectId)?.tasks ?? [])
-                            : []
-                        }
-                        onToggleInclude={() =>
-                          updateDraftRow(row.id, (current) => ({
-                            ...current,
-                            include: !current.include,
-                          }))
-                        }
-                        onProjectChange={(projectId) =>
-                          updateDraftRow(row.id, (current) => ({
-                            ...current,
-                            projectId,
-                            taskId: "",
-                          }))
-                        }
-                        onTaskChange={(taskId) =>
-                          updateDraftRow(row.id, (current) => ({
-                            ...current,
-                            taskId,
-                          }))
-                        }
-                        onHoursChange={(hoursValue) =>
-                          updateDraftRow(row.id, (current) => ({
-                            ...current,
-                            hours: parseHours(hoursValue),
-                          }))
-                        }
-                        onDescriptionChange={(description) =>
-                          updateDraftRow(row.id, (current) => ({
-                            ...current,
-                            description,
-                          }))
-                        }
-                        onEditDescription={() =>
-                          setActiveDescriptionRowId(row.id)
-                        }
-                      />
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      {reviewedRows.length > 0 ? (
-        <section>
-          <Card className="border-border/80 bg-card/95 shadow-none">
-            <CardHeader className="border-b border-border/80">
-              <CardTitle>Push To Clockify</CardTitle>
-              <CardDescription>Submit only the rows that are fully ready.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-end px-4 py-4">
-              <Button
-                onClick={handlePushToClockify}
-                disabled={!summary.canSubmit || isSubmitting}
-                className="h-11 rounded-2xl bg-primary px-5 text-primary-foreground shadow-[0_14px_28px_rgba(36,24,48,0.28)] hover:bg-primary/90"
-              >
-                {isSubmitting ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
+            <div className="mt-3 rounded-[14px] border border-border bg-card px-3 py-3">
+              <div className="flex flex-wrap gap-2">
+                {isLoading ? (
+                  <span className="text-sm text-muted-foreground">Loading projects...</span>
                 ) : (
-                  <ArrowRightLeft className="h-4 w-4" />
+                  <>
+                    {defaultClients.map((client) => (
+                      <span
+                        key={client.id}
+                        className="rounded-full border border-border px-3 py-1 text-sm text-foreground"
+                      >
+                        {client.label}
+                      </span>
+                    ))}
+                    {extraClients.map((client) => (
+                      <span
+                        key={client.id}
+                        className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-sm text-foreground"
+                      >
+                        {client.label}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExtraProject(client.id)}
+                          className="text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </>
                 )}
-                Push to Clockify
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
-      ) : null}
-
-      {activeDescriptionRow ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(18,12,24,0.68)] px-4 py-6"
-          onClick={() => setActiveDescriptionRowId(null)}
-        >
-          <div
-            className="w-full max-w-2xl rounded-[28px] border border-border bg-card p-5 shadow-[0_28px_80px_rgba(18,12,24,0.42)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="font-studio text-2xl font-semibold tracking-[-0.03em] text-foreground">
-                  {activeDescriptionRow.sourceTitle}
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {formatDateTime(activeDescriptionRow.createdAt)} -{" "}
-                  {formatDateTime(activeDescriptionRow.doneAt)}
-                </p>
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                className="rounded-full px-4"
-                onClick={() => setActiveDescriptionRowId(null)}
-              >
-                Close
-              </Button>
-            </div>
-
-            <div className="mt-5">
-              <textarea
-                autoFocus
-                wrap="soft"
-                spellCheck={false}
-                value={activeDescriptionRow.description}
-                onChange={(event) =>
-                  updateDraftRow(activeDescriptionRow.id, (current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-                rows={10}
-                placeholder="Add description"
-                className="min-h-[240px] w-full resize-none overflow-x-hidden rounded-[22px] border border-border/80 bg-background/70 px-4 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground [overflow-wrap:anywhere] [word-break:break-word] focus:border-primary/40"
-              />
-            </div>
-
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <Button
-                type="button"
-                className="ml-auto rounded-full px-5"
-                onClick={() => setActiveDescriptionRowId(null)}
-              >
-                Done
-              </Button>
             </div>
           </div>
-        </div>
-      ) : null}
+
+          <div className="space-y-2">
+            <Label htmlFor="fr-clockify-description">Description</Label>
+            <textarea
+              id="fr-clockify-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={8}
+              className="min-h-[220px] w-full resize-none rounded-[14px] border border-border bg-background px-4 py-3 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary/40"
+            />
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <Button
+              type="button"
+              onClick={handlePushToClockify}
+              disabled={isSubmitting || isLoading}
+              className="h-11 rounded-[14px] px-5"
+            >
+              {isSubmitting ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : null}
+              Push to Clockify
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {toast ? (
         <div className="fixed bottom-5 right-5 z-50 w-full max-w-sm">
@@ -675,394 +472,6 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
   );
 }
 
-function ReviewTableRow({
-  row,
-  projects,
-  availableTasks,
-  onToggleInclude,
-  onProjectChange,
-  onTaskChange,
-  onHoursChange,
-  onDescriptionChange,
-  onEditDescription,
-}: {
-  row: ReviewedAsanaRow;
-  projects: ClockifyProject[];
-  availableTasks: ClockifyProject["tasks"];
-  onToggleInclude: () => void;
-  onProjectChange: (projectId: string) => void;
-  onTaskChange: (taskId: string) => void;
-  onHoursChange: (hours: string) => void;
-  onDescriptionChange: (description: string) => void;
-  onEditDescription: () => void;
-}) {
-  const hasDescription = row.description.trim().length > 0;
-  const issueSummary = row.issues.map((issue) => issue.message).join(" ");
-
-  return (
-    <tr className="border-t border-border/70 align-top">
-      <td className="px-3 py-2">
-        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <input
-            type="checkbox"
-            checked={row.include}
-            onChange={onToggleInclude}
-            className="h-4 w-4 border-border text-primary focus:ring-ring"
-          />
-          <span>Include</span>
-        </label>
-      </td>
-      <td className="border-l border-border/70 px-3 py-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-primary">
-            <Clock3 className="h-3.5 w-3.5" />
-            Ticket
-          </div>
-          <p
-            className="mt-1 truncate font-semibold leading-5 text-foreground"
-            title={row.sourceTitle}
-          >
-            {row.sourceTitle}
-          </p>
-          <p className="truncate text-xs leading-5 text-muted-foreground">
-            {formatDateTime(row.createdAt)} - {formatDateTime(row.doneAt)}
-          </p>
-        </div>
-      </td>
-      <td className="border-l border-border/70 px-3 py-2">
-        <div className="min-w-0">
-          {row.sourceLink ? (
-            <a
-              href={row.sourceLink}
-              target="_blank"
-              rel="noreferrer"
-              className="truncate text-sm font-medium text-primary underline-offset-4 hover:underline"
-              title={row.sourceLink}
-            >
-              Open ticket
-            </a>
-          ) : (
-            <p className="truncate text-sm text-muted-foreground">No link</p>
-          )}
-        </div>
-      </td>
-      <td className="border-l border-border/70 px-3 py-2">
-        <div className="min-w-0">
-          <p
-            className="truncate text-sm text-foreground"
-            title={row.sourceSection || "No section"}
-          >
-            {row.sourceSection || "No section"}
-          </p>
-        </div>
-      </td>
-      <td className="border-l border-border/70 px-3 py-2">
-        <SearchSelect
-          value={row.projectId}
-          onChange={onProjectChange}
-          disabled={!row.include}
-          placeholder="Select project"
-          searchPlaceholder="Search projects..."
-          emptyResultsLabel="No projects found."
-          options={[
-            { value: "", label: "Select project" },
-            ...projects.map((project) => ({
-              value: project.projectId,
-              label: project.projectName,
-            })),
-          ]}
-        />
-      </td>
-      <td className="border-l border-border/70 px-3 py-2">
-        <SearchSelect
-          value={row.taskId}
-          onChange={onTaskChange}
-          disabled={!row.include || !row.projectId}
-          placeholder={row.projectId ? "Manual / None" : "Pick project first"}
-          searchPlaceholder="Search tasks..."
-          emptyResultsLabel={
-            row.projectId ? "No tasks found." : "Pick a project first."
-          }
-          options={[
-            {
-              value: "",
-              label: row.projectId ? "Manual / None" : "Pick project first",
-            },
-            ...availableTasks.map((task) => ({
-              value: task.taskId,
-              label: task.taskName,
-            })),
-          ]}
-        />
-      </td>
-      <td className="border-l border-border/70 px-3 py-2">
-        <Input
-          type="number"
-          min="0.25"
-          step="0.25"
-          value={row.hours > 0 ? String(row.hours) : ""}
-          onChange={(event) => onHoursChange(event.target.value)}
-          disabled={!row.include}
-          className="h-9 w-24 rounded-none border-border bg-background/80 shadow-none"
-        />
-      </td>
-      <td className="border-l border-border/70 px-3 py-2">
-        <div className="min-w-0">
-          <button
-            type="button"
-            onClick={onEditDescription}
-            disabled={!row.include}
-            className="flex h-9 w-full items-center justify-between gap-3 rounded-none border border-border bg-background/80 px-3 py-0 text-left shadow-none transition-colors hover:border-primary/28 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-sm text-foreground",
-                !hasDescription && "text-[hsl(var(--muted-foreground))]",
-              )}
-            >
-              {hasDescription
-                ? getDescriptionPreview(row.description)
-                : "Add description"}
-            </span>
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-              Edit
-            </span>
-          </button>
-        </div>
-      </td>
-      <td className="border-l border-border/70 px-3 py-2">
-        <div className="min-w-0 space-y-1">
-          <StatusBadge status={row.status} />
-          {issueSummary ? (
-            <p
-              title={issueSummary}
-              className={cn(
-                "truncate text-xs leading-5",
-                row.issues.some((issue) => issue.tone === "error")
-                  ? "text-accent"
-                  : "text-muted-foreground",
-              )}
-            >
-              {issueSummary}
-            </p>
-          ) : null}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function buildDraftRows(
-  tasks: AsanaTaskRow[],
-  projects: ClockifyProject[],
-  descriptionParts: DescriptionParts,
-) {
-  const projectsByName = new Map(
-    projects.map((project) => [normalizeName(project.projectName), project]),
-  );
-
-  return tasks.map((task, index) => {
-    const sourceTitle = buildSourceTitle(task, index);
-    const sourceBody = task.description ?? "";
-    const suggestedProject =
-      task.projects
-        .map((projectName) => projectsByName.get(normalizeName(projectName)))
-        .find(Boolean) ?? null;
-
-    return {
-      id: `asana-${index}-${task.ticket_date_creation ?? "na"}-${task.ticket_date_done ?? "na"}`,
-      sourceLink: task.ticket_link ?? "",
-      sourceTitle,
-      sourceSection: (task.section ?? []).join(", "),
-      sourceBody,
-      createdAt: task.ticket_date_creation,
-      doneAt: task.ticket_date_done,
-      include: true,
-      projectId: suggestedProject?.projectId ?? "",
-      taskId: "",
-      hours: 0.5,
-      description: buildDescriptionFromParts(
-        task.ticket_link ?? "",
-        sourceTitle,
-        (task.section ?? []).join(", "),
-        sourceBody,
-        descriptionParts,
-      ),
-    };
-  });
-}
-
-function buildSourceTitle(task: AsanaTaskRow, index: number) {
-  const explicitTitle = task.title?.trim();
-  if (explicitTitle) {
-    return explicitTitle;
-  }
-
-  const firstProject = task.projects[0]?.trim();
-  if (firstProject) {
-    return firstProject;
-  }
-
-  const firstSection = task.section?.[0]?.trim();
-  if (firstSection) {
-    return firstSection;
-  }
-
-  const normalizedDescription = task.description.replace(/\s+/g, " ").trim();
-  if (normalizedDescription) {
-    return normalizedDescription.length > 60
-      ? `${normalizedDescription.slice(0, 60).trimEnd()}...`
-      : normalizedDescription;
-  }
-
-  return `Asana task ${index + 1}`;
-}
-
-function validateRow(
-  row: AsanaDraftRow,
-  projectById: Map<string, ClockifyProject>,
-): ReviewedAsanaRow {
-  const issues: ReviewedAsanaRow["issues"] = [];
-
-  if (!row.include) {
-    return {
-      ...row,
-      projectName: projectById.get(row.projectId)?.projectName,
-      taskName: projectById
-        .get(row.projectId)
-        ?.tasks.find((task) => task.taskId === row.taskId)?.taskName,
-      status: "skipped",
-      issues,
-    };
-  }
-
-  const project = row.projectId ? projectById.get(row.projectId) : undefined;
-  const task = project?.tasks.find((item) => item.taskId === row.taskId);
-
-  if (!row.projectId) {
-    issues.push({ tone: "warning", message: "Select a Clockify project." });
-  } else if (!project) {
-    issues.push({
-      tone: "error",
-      message: "Selected project is no longer available.",
-    });
-  }
-
-  if (row.taskId && !task) {
-    issues.push({
-      tone: "error",
-      message: "Selected task does not belong to the chosen project.",
-    });
-  }
-
-  if (!Number.isFinite(row.hours) || row.hours <= 0) {
-    issues.push({ tone: "error", message: "Hours must be greater than zero." });
-  }
-
-  const start = getClockifyStart(row);
-  const end = getClockifyEnd(row);
-
-  if (!start || !end) {
-    issues.push({
-      tone: "error",
-      message: "Ticket completion date is missing or invalid.",
-    });
-  } else if (new Date(end).getTime() <= new Date(start).getTime()) {
-    issues.push({
-      tone: "error",
-      message: "Derived Clockify time range is invalid.",
-    });
-  }
-
-  if (!row.description.trim()) {
-    issues.push({
-      tone: "warning",
-      message: "Description is empty.",
-    });
-  }
-
-  const status: ReviewStatus = issues.some((issue) => issue.tone === "error")
-    ? "error"
-    : issues.length > 0
-      ? "needs_review"
-      : "ready";
-
-  return {
-    ...row,
-    projectName: project?.projectName,
-    taskName: task?.taskName,
-    status,
-    issues,
-  };
-}
-
-function StatusBadge({ status }: { status: ReviewStatus }) {
-  const variants: Record<
-    ReviewStatus,
-    "default" | "secondary" | "accent" | "muted"
-  > = {
-    ready: "default",
-    needs_review: "secondary",
-    error: "accent",
-    skipped: "muted",
-  };
-
-  const labels: Record<ReviewStatus, string> = {
-    ready: "Ready",
-    needs_review: "Needs review",
-    error: "Error",
-    skipped: "Skipped",
-  };
-
-  return (
-    <Badge
-      variant={variants[status]}
-      className="h-5 rounded-none px-2 text-[10px] uppercase tracking-[0.16em]"
-    >
-      {labels[status]}
-    </Badge>
-  );
-}
-
-function DescriptionPartOption({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <label className="inline-flex items-center gap-2 text-sm text-foreground">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="h-4 w-4 border-border text-primary focus:ring-ring"
-      />
-      <span>{label}</span>
-    </label>
-  );
-}
-
-function StudioField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <Label className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">
-        {label}
-      </Label>
-      {children}
-    </div>
-  );
-}
-
 function PageAlert({ text }: { text: string }) {
   return (
     <section className="border border-[rgba(240,119,93,0.20)] bg-[rgba(240,119,93,0.08)] px-4 py-3 text-sm text-accent">
@@ -1074,99 +483,84 @@ function PageAlert({ text }: { text: string }) {
   );
 }
 
-function buildDescriptionFromParts(
-  link: string,
-  title: string,
-  section: string,
-  notes: string,
-  parts: DescriptionParts,
+function buildClientOptions(
+  splitProjects: SplitProject[],
+  clockifyProjects: ClockifyProject[],
 ) {
-  const cleanLink = link.trim();
-  const cleanTitle = title.trim();
-  const cleanSection = section.trim();
-  const cleanNotes = notes.trim();
-  const values = [
-    parts.link ? cleanLink : "",
-    parts.title ? cleanTitle : "",
-    parts.section ? cleanSection : "",
-    parts.body ? cleanNotes : "",
-  ].filter(Boolean);
+  const clockifyByName = new Map(
+    clockifyProjects.map((project) => [
+      normalizeName(project.projectName),
+      project,
+    ]),
+  );
 
-  return values.join("\n\n");
-}
+  return splitProjects
+    .map((project) => {
+      const clockifyProject = clockifyByName.get(normalizeName(project.name));
 
-function getDescriptionPreview(value: string) {
-  const normalized = value.replace(/\s+/g, " ").trim();
+      if (!clockifyProject) {
+        return null;
+      }
 
-  if (!normalized) {
-    return "";
-  }
-
-  return normalized.length > 56
-    ? `${normalized.slice(0, 56).trimEnd()}...`
-    : normalized;
+      return {
+        id: project.id,
+        label: project.name,
+        projectId: clockifyProject.projectId,
+        projectName: clockifyProject.projectName,
+      };
+    })
+    .filter((client): client is ClientOption => Boolean(client))
+    .sort((left, right) => left.label.localeCompare(right.label));
 }
 
 function normalizeName(value: string) {
-  return value.trim().toLocaleLowerCase();
+  return value.trim().toLowerCase();
 }
 
 function parseHours(value: string) {
   const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.round(parsed * 100) / 100
-    : 0;
-}
-
-function getClockifyEnd(row: AsanaDraftRow) {
-  return toValidIso(row.doneAt ?? row.createdAt ?? "");
-}
-
-function getClockifyStart(row: AsanaDraftRow) {
-  const end = getClockifyEnd(row);
-  const endTime = new Date(end).getTime();
-
-  if (!end || !Number.isFinite(endTime) || !Number.isFinite(row.hours) || row.hours <= 0) {
-    return "";
-  }
-
-  return new Date(endTime - row.hours * 60 * 60 * 1000).toISOString();
-}
-
-function toValidIso(value: string) {
-  const timestamp = new Date(value).getTime();
-  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function getToday() {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function getMonthStart() {
+function getCurrentTime() {
   const date = new Date();
-  date.setUTCDate(1);
-  return date.toISOString().slice(0, 10);
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function resolveEndTime(totalHours: number) {
+  const totalMinutes = Math.round(totalHours * 60);
+  const endMinutes = DEFAULT_WORK_START_HOUR * 60 + totalMinutes;
+
+  if (endMinutes > 24 * 60 - 1) {
+    return null;
+  }
+
+  const hours = String(Math.floor(endMinutes / 60)).padStart(2, "0");
+  const minutes = String(endMinutes % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
 }
 
 function getErrorMessage(exc: unknown) {
   if (exc instanceof ApiError) {
     if (exc.details && typeof exc.details === "object") {
       const details = exc.details as Record<string, unknown>;
+
       if (typeof details.message === "string" && details.message.trim()) {
         return details.message;
+      }
+
+      if (typeof details.error === "string" && details.error.trim()) {
+        return details.error;
       }
     }
 
@@ -1177,7 +571,7 @@ function getErrorMessage(exc: unknown) {
     return exc.message;
   }
 
-  return "Unexpected Asana error.";
+  return "Unexpected FR Clockify error.";
 }
 
 function isClockifySyncResponse(value: unknown): value is ClockifySyncResponse {

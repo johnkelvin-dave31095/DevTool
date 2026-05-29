@@ -11,6 +11,18 @@ import pg8000.dbapi as pg8000
 
 
 ASANA_API_BASE_URL = "https://app.asana.com/api/1.0"
+SPLIT_TIMEZONE = "Asia/Manila"
+SPLIT_START_TIME = "08:00:00"
+SPLIT_PROJECTS = [
+    "Zenith Group",
+    "OT Project Notaroo FI/ FR",
+    "OT Project Nirman Ventures FR",
+    "OT Project Lotus Domaine Fund 3 genAI",
+    "OT Project FR - Pillar Fund",
+    "OT Project CnV FR",
+    "OT Project Astera Technologies FR",
+    "OT Project Analytix Solutions FI/ FR",
+]
 OPT_FIELDS = ",".join(
     [
         "gid",
@@ -29,6 +41,23 @@ def lambda_handler(event, _context):
             return json_response(200, {"message": "ok"})
 
         body = parse_body(event)
+        action = str(body.get("action") or "").strip()
+
+        if action == "listSplitProjects":
+            return json_response(
+                200,
+                {
+                    "action": "listSplitProjects",
+                    "projects": [
+                        {"id": slugify_project_name(name), "name": name}
+                        for name in SPLIT_PROJECTS
+                    ],
+                },
+            )
+
+        if action == "planSplit":
+            return handle_plan_split(body)
+
         email = required(body, "email")
         workspace_gid = required_env("ASANA_WORKSPACE_GID")
         timezone_name = os.environ.get("DEFAULT_TIMEZONE", "UTC")
@@ -55,6 +84,37 @@ def lambda_handler(event, _context):
         return json_response(500, {"message": str(exc)})
 
 
+def handle_plan_split(body):
+    description = required(body, "description")
+    total_hours = parse_positive_hours(body.get("totalHours"))
+    work_date = required(body, "workDate")
+    timezone_name = resolve_split_timezone(body.get("timezone"))
+    clients = parse_clients(body.get("clients"))
+    anchor_start = parse_anchor_start(work_date, timezone_name)
+    anchor_end = anchor_start + timedelta(hours=total_hours)
+
+    if anchor_end.date() != anchor_start.date():
+        raise ValueError("totalHours must stay within the selected Manila work day.")
+
+    return json_response(
+        200,
+        {
+            "action": "planSplit",
+            "totalHours": total_hours,
+            "clientCount": len(clients),
+            "splitHours": round(total_hours / len(clients), 4),
+            "anchorStart": anchor_start.isoformat(),
+            "anchorEnd": anchor_end.isoformat(),
+            "entries": build_split_entries(
+                description=description,
+                total_hours=total_hours,
+                clients=clients,
+                anchor_start=anchor_start,
+            ),
+        },
+    )
+
+
 def http_method(event):
     return (
         str(event.get("requestContext", {}).get("http", {}).get("method") or "")
@@ -74,6 +134,18 @@ def parse_body(event):
     return json.loads(body)
 
 
+def parse_positive_hours(value):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("totalHours must be a positive number.") from exc
+
+    if parsed <= 0:
+        raise ValueError("totalHours must be greater than zero.")
+
+    return round(parsed, 4)
+
+
 def required(data, key):
     value = str(data.get(key) or "").strip()
     if not value:
@@ -81,11 +153,70 @@ def required(data, key):
     return value
 
 
+def parse_clients(payload):
+    if not isinstance(payload, list) or not payload:
+        raise ValueError("Select at least one client.")
+
+    clients = []
+
+    for index, raw_client in enumerate(payload, start=1):
+        if not isinstance(raw_client, dict):
+            raise ValueError(f"Client #{index} is invalid.")
+
+        client_label = clean_text(raw_client.get("clientLabel"))
+        project_id = clean_text(raw_client.get("projectId"))
+        project_name = clean_text(raw_client.get("projectName"))
+        task_id = clean_text(raw_client.get("taskId"))
+        task_name = clean_text(raw_client.get("taskName"))
+
+        if not client_label:
+            raise ValueError(f"Client #{index} is missing clientLabel.")
+
+        if not project_id:
+            raise ValueError(f"Client #{index} is missing projectId.")
+
+        if not project_name:
+            raise ValueError(f"Client #{index} is missing projectName.")
+
+        clients.append(
+            {
+                "clientLabel": client_label,
+                "projectId": project_id,
+                "projectName": project_name,
+                "taskId": task_id or None,
+                "taskName": task_name or None,
+            }
+        )
+
+    return clients
+
+
 def required_env(name):
     value = os.environ.get(name)
     if not value:
         raise ValueError(f"Missing environment variable: {name}")
     return value
+
+
+def resolve_split_timezone(timezone_name):
+    candidate = clean_text(timezone_name)
+    if candidate:
+        return candidate
+    return SPLIT_TIMEZONE
+
+
+def parse_anchor_start(work_date, timezone_name):
+    try:
+        tz = ZoneInfo(timezone_name)
+    except Exception as exc:
+        raise ValueError(f"Unsupported timezone: {timezone_name}") from exc
+
+    try:
+        anchor = datetime.fromisoformat(f"{work_date}T{SPLIT_START_TIME}")
+    except ValueError as exc:
+        raise ValueError("Invalid workDate.") from exc
+
+    return anchor.replace(tzinfo=tz)
 
 
 def get_date_range(body, timezone_name):
@@ -100,9 +231,52 @@ def get_date_range(body, timezone_name):
     return start, end
 
 
+def build_split_entries(description, total_hours, clients, anchor_start):
+    total_seconds = int(round(total_hours * 3600))
+    base_seconds = total_seconds // len(clients)
+    remainder_seconds = total_seconds % len(clients)
+    cursor = anchor_start
+    entries = []
+
+    for index, client in enumerate(clients):
+        duration_seconds = base_seconds + (1 if index < remainder_seconds else 0)
+        entry_start = cursor
+        entry_end = cursor + timedelta(seconds=duration_seconds)
+        cursor = entry_end
+
+        entries.append(
+            {
+                "order": index + 1,
+                "clientLabel": client["clientLabel"],
+                "projectId": client["projectId"],
+                "projectName": client["projectName"],
+                "taskId": client["taskId"],
+                "taskName": client["taskName"],
+                "title": client["clientLabel"],
+                "description": description,
+                "start": entry_start.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "end": entry_end.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "splitHours": round(duration_seconds / 3600, 4),
+                "totalHours": total_hours,
+                "clientCount": len(clients),
+            }
+        )
+
+    return entries
+
+
 def parse_datetime(value, fallback_tz):
     parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=fallback_tz)
+
+
+def clean_text(value):
+    return str(value or "").strip()
+
+
+def slugify_project_name(value):
+    cleaned = clean_text(value).lower()
+    return "".join(char if char.isalnum() else "-" for char in cleaned).strip("-")
 
 
 def get_asana_api_key(email):

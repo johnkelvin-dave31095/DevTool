@@ -59,7 +59,7 @@ export function Sidebar({
           onClick={() => onSelectModule("asana")}
         >
           <Blocks className="h-4 w-4" />
-          Asana
+          FR Clockify
         </Button>
         <Button
           variant="ghost"

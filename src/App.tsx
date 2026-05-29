@@ -768,7 +768,7 @@ function ModuleRail({
           onClick={() => onSelectModule("asana")}
         >
           <Blocks className="h-4 w-4" />
-          Asana
+          FR Clockify
         </Button>
         <Button
           type="button"

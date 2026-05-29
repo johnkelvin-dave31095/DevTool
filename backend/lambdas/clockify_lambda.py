@@ -6,6 +6,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from clockify_fr_clockify import (
+    build_fr_clockify_entries,
+    parse_fr_clockify_request,
+)
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -52,6 +57,7 @@ def lambda_handler(event, context):
                 include_archived=include_archived,
                 only_active_tasks=only_active_tasks,
             )
+            listing["timezone"] = get_user_timezone(settings["api_key"])
 
             return response(200, listing)
 
@@ -61,131 +67,15 @@ def lambda_handler(event, context):
             if not entries:
                 return response(400, {"message": "No reviewed entries provided."})
 
-            catalog = list_projects_and_tasks(
-                api_key=settings["api_key"],
-                workspace_id=settings["workspace_id"],
-                include_archived=False,
-                only_active_tasks=False,
-            )
-            project_lookup = {
-                project["projectId"]: project for project in catalog["projects"]
-            }
+            return process_direct_push_entries(settings, entries, "push")
 
-            created = []
-            skipped = []
-
-            for entry in entries:
-                try:
-                    validated_entry = validate_push_entry(entry)
-
-                    project = project_lookup.get(validated_entry["projectId"])
-                    if not project:
-                        skip_payload = {
-                            "title": validated_entry["title"],
-                            "projectId": validated_entry["projectId"],
-                            "taskId": validated_entry["taskId"],
-                            "start": validated_entry["start"],
-                            "end": validated_entry["end"],
-                            "error": "Clockify project not found for the submitted projectId.",
-                        }
-                        skipped.append(skip_payload)
-                        logger.warning(
-                            "clockify_push_skipped %s",
-                            json.dumps(skip_payload, default=str),
-                        )
-                        continue
-
-                    task = None
-
-                    if validated_entry["taskId"]:
-                        task = next(
-                            (
-                                item
-                                for item in project.get("tasks", [])
-                                if item.get("taskId") == validated_entry["taskId"]
-                            ),
-                            None,
-                        )
-
-                    if validated_entry["taskId"] and not task:
-                        skip_payload = {
-                            "title": validated_entry["title"],
-                            "projectId": validated_entry["projectId"],
-                            "projectName": project.get("projectName"),
-                            "taskId": validated_entry["taskId"],
-                            "start": validated_entry["start"],
-                            "end": validated_entry["end"],
-                            "error": "Clockify task not found under the submitted projectId.",
-                        }
-                        skipped.append(skip_payload)
-                        logger.warning(
-                            "clockify_push_skipped %s",
-                            json.dumps(skip_payload, default=str),
-                        )
-                        continue
-
-                    time_entry = create_time_entry(
-                        api_key=settings["api_key"],
-                        workspace_id=settings["workspace_id"],
-                        project_id=validated_entry["projectId"],
-                        task_id=validated_entry["taskId"],
-                        description=validated_entry["description"],
-                        start=validated_entry["start"],
-                        end=validated_entry["end"],
-                        billable=validated_entry["billable"],
-                    )
-
-                    created_payload = {
-                        "title": validated_entry["title"],
-                        "projectId": validated_entry["projectId"],
-                        "projectName": project.get("projectName"),
-                        "taskId": validated_entry["taskId"],
-                        "taskName": task.get("taskName") if task else None,
-                        "timeEntryId": time_entry.get("id"),
-                        "start": validated_entry["start"],
-                        "end": validated_entry["end"],
-                        "billable": validated_entry["billable"],
-                    }
-                    created.append(created_payload)
-                    logger.info(
-                        "clockify_push_created %s",
-                        json.dumps(created_payload, default=str),
-                    )
-
-                except ValidationError as exc:
-                    skip_payload = {
-                        "title": entry.get("title"),
-                        "error": str(exc),
-                    }
-                    skipped.append(skip_payload)
-                    logger.warning(
-                        "clockify_push_skipped %s",
-                        json.dumps(skip_payload, default=str),
-                    )
-
-                except ClockifyError as exc:
-                    skip_payload = {
-                        "title": entry.get("title"),
-                        "error": exc.message,
-                        "details": exc.details,
-                    }
-                    skipped.append(skip_payload)
-                    logger.warning(
-                        "clockify_push_skipped %s",
-                        json.dumps(skip_payload, default=str),
-                    )
-
-            status_code = 200 if created else 400
-
-            return response(
-                status_code,
-                {
-                    "action": "push",
-                    "createdCount": len(created),
-                    "skippedCount": len(skipped),
-                    "created": created,
-                    "skipped": skipped,
-                },
+        if action == "pushfrclockify":
+            fr_request = parse_fr_clockify_request(payload)
+            fr_entries = build_fr_clockify_entries(fr_request)
+            return process_direct_push_entries(
+                settings,
+                fr_entries,
+                "pushFrClockify",
             )
 
         if action not in ("create", "sync"):
@@ -193,7 +83,13 @@ def lambda_handler(event, context):
                 400,
                 {
                     "message": "Unsupported action.",
-                    "supportedActions": ["list", "push", "create", "sync"],
+                    "supportedActions": [
+                        "list",
+                        "push",
+                        "pushFrClockify",
+                        "create",
+                        "sync",
+                    ],
                 },
             )
 
@@ -428,6 +324,146 @@ def extract_events(payload):
     return []
 
 
+def process_direct_push_entries(settings, entries, action_name):
+    catalog = list_projects_and_tasks(
+        api_key=settings["api_key"],
+        workspace_id=settings["workspace_id"],
+        include_archived=False,
+        only_active_tasks=False,
+    )
+    project_lookup = {
+        project["projectId"]: project for project in catalog["projects"]
+    }
+
+    created = []
+    skipped = []
+
+    for entry in entries:
+        try:
+            validated_entry = validate_push_entry(entry)
+
+            project = project_lookup.get(validated_entry["projectId"])
+            if not project:
+                skip_payload = {
+                    "title": validated_entry["title"],
+                    "projectId": validated_entry["projectId"],
+                    "taskId": validated_entry["taskId"],
+                    "start": validated_entry["start"],
+                    "end": validated_entry["end"],
+                    "error": "Clockify project not found for the submitted projectId.",
+                }
+                skipped.append(skip_payload)
+                logger.warning(
+                    "clockify_push_skipped %s",
+                    json.dumps(skip_payload, default=str),
+                )
+                continue
+
+            task = None
+
+            if validated_entry["taskId"]:
+                task = next(
+                    (
+                        item
+                        for item in project.get("tasks", [])
+                        if item.get("taskId") == validated_entry["taskId"]
+                    ),
+                    None,
+                )
+
+            if validated_entry["taskId"] and not task:
+                skip_payload = {
+                    "title": validated_entry["title"],
+                    "projectId": validated_entry["projectId"],
+                    "projectName": project.get("projectName"),
+                    "taskId": validated_entry["taskId"],
+                    "start": validated_entry["start"],
+                    "end": validated_entry["end"],
+                    "error": "Clockify task not found under the submitted projectId.",
+                }
+                skipped.append(skip_payload)
+                logger.warning(
+                    "clockify_push_skipped %s",
+                    json.dumps(skip_payload, default=str),
+                )
+                continue
+
+            time_entry = create_time_entry(
+                api_key=settings["api_key"],
+                workspace_id=settings["workspace_id"],
+                project_id=validated_entry["projectId"],
+                task_id=validated_entry["taskId"],
+                description=validated_entry["description"],
+                start=validated_entry["start"],
+                end=validated_entry["end"],
+                billable=validated_entry["billable"],
+            )
+
+            created_payload = {
+                "title": validated_entry["title"],
+                "projectId": validated_entry["projectId"],
+                "projectName": project.get("projectName"),
+                "taskId": validated_entry["taskId"],
+                "taskName": task.get("taskName") if task else None,
+                "timeEntryId": time_entry.get("id"),
+                "start": validated_entry["start"],
+                "end": validated_entry["end"],
+                "billable": validated_entry["billable"],
+            }
+            created.append(created_payload)
+            logger.info(
+                "clockify_push_created %s",
+                json.dumps(created_payload, default=str),
+            )
+
+        except ValidationError as exc:
+            skip_payload = {
+                "title": entry.get("title"),
+                "error": str(exc),
+            }
+            skipped.append(skip_payload)
+            logger.warning(
+                "clockify_push_skipped %s",
+                json.dumps(skip_payload, default=str),
+            )
+
+        except ValueError as exc:
+            skip_payload = {
+                "title": entry.get("title"),
+                "error": str(exc),
+            }
+            skipped.append(skip_payload)
+            logger.warning(
+                "clockify_push_skipped %s",
+                json.dumps(skip_payload, default=str),
+            )
+
+        except ClockifyError as exc:
+            skip_payload = {
+                "title": entry.get("title"),
+                "error": exc.message,
+                "details": exc.details,
+            }
+            skipped.append(skip_payload)
+            logger.warning(
+                "clockify_push_skipped %s",
+                json.dumps(skip_payload, default=str),
+            )
+
+    status_code = 200 if created else 400
+
+    return response(
+        status_code,
+        {
+            "action": action_name,
+            "createdCount": len(created),
+            "skippedCount": len(skipped),
+            "created": created,
+            "skipped": skipped,
+        },
+    )
+
+
 def validate_push_entry(entry):
     title = clean_string(entry.get("title"))
     description = clean_string(entry.get("description"))
@@ -566,6 +602,27 @@ def list_projects_and_tasks(api_key, workspace_id, include_archived=False, only_
         "onlyActiveTasks": only_active_tasks,
         "projects": result_projects,
     }
+
+
+def get_user_timezone(api_key):
+    profile = request_json(
+        f"{CLOCKIFY_API_BASE_URL}/user",
+        method="GET",
+        api_key=api_key,
+    )
+
+    if not isinstance(profile, dict):
+        raise ClockifyError(502, "Unexpected Clockify user response.", profile)
+
+    settings = profile.get("settings")
+    if isinstance(settings, dict):
+        timezone_name = clean_string(
+            settings.get("timeZone") or settings.get("timezone")
+        )
+        if timezone_name:
+            return timezone_name
+
+    return os.environ.get("DEFAULT_TIMEZONE", "UTC")
 
 
 def get_all_projects(api_key, workspace_id, include_archived=False):
