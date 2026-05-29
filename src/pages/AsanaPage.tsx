@@ -65,6 +65,7 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
   const [totalHours, setTotalHours] = useState("");
   const [selectedExtraProjectId, setSelectedExtraProjectId] = useState("");
   const [defaultClients, setDefaultClients] = useState<ClientOption[]>([]);
+  const [removedDefaultProjectIds, setRemovedDefaultProjectIds] = useState<string[]>([]);
   const [extraClients, setExtraClients] = useState<ClientOption[]>([]);
   const [clockifyProjects, setClockifyProjects] = useState<ClockifyProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,9 +77,17 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
     void loadProjects();
   }, [currentEmail]);
 
+  const visibleDefaultClients = useMemo(
+    () =>
+      defaultClients.filter(
+        (client) => !removedDefaultProjectIds.includes(client.projectId),
+      ),
+    [defaultClients, removedDefaultProjectIds],
+  );
+
   const allClients = useMemo(
-    () => [...defaultClients, ...extraClients],
-    [defaultClients, extraClients],
+    () => [...visibleDefaultClients, ...extraClients],
+    [extraClients, visibleDefaultClients],
   );
 
   const availableExtraProjects = useMemo(() => {
@@ -114,6 +123,7 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
 
       setClockifyProjects(catalog.projects);
       setDefaultClients(buildClientOptions(splitProjects.projects, catalog.projects));
+      setRemovedDefaultProjectIds([]);
       setExtraClients([]);
       setSelectedExtraProjectId("");
     } catch (exc) {
@@ -162,6 +172,12 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
 
   function handleRemoveExtraProject(clientId: string) {
     setExtraClients((current) => current.filter((client) => client.id !== clientId));
+  }
+
+  function handleRemoveDefaultProject(projectId: string) {
+    setRemovedDefaultProjectIds((current) =>
+      current.includes(projectId) ? current : [...current, projectId],
+    );
   }
 
   async function handlePushToClockify() {
@@ -367,12 +383,19 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
                   <span className="text-sm text-muted-foreground">Loading projects...</span>
                 ) : (
                   <>
-                    {defaultClients.map((client) => (
+                    {visibleDefaultClients.map((client) => (
                       <span
                         key={client.id}
-                        className="rounded-full border border-border px-3 py-1 text-sm text-foreground"
+                        className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm text-foreground"
                       >
                         {client.label}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDefaultProject(client.projectId)}
+                          className="text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
                       </span>
                     ))}
                     {extraClients.map((client) => (
