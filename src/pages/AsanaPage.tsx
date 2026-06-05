@@ -62,6 +62,7 @@ const DEFAULT_WORK_START_HOUR = 8;
 export function AsanaPage({ currentEmail }: { currentEmail: string }) {
   const [description, setDescription] = useState("");
   const [workDate, setWorkDate] = useState(getToday());
+  const [clockifyTimezone, setClockifyTimezone] = useState("");
   const [totalHours, setTotalHours] = useState("");
   const [selectedExtraProjectId, setSelectedExtraProjectId] = useState("");
   const [defaultClients, setDefaultClients] = useState<ClientOption[]>([]);
@@ -122,6 +123,8 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
       ]);
 
       setClockifyProjects(catalog.projects);
+      setClockifyTimezone(catalog.timezone ?? "");
+      setWorkDate(getDefaultWorkDate(catalog.timezone ?? ""));
       setDefaultClients(buildClientOptions(splitProjects.projects, catalog.projects));
       setRemovedDefaultProjectIds([]);
       setExtraClients([]);
@@ -238,7 +241,7 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
         totalHours: parsedHours,
         workDate,
         endTime,
-        timezone: PLANNING_TIMEZONE,
+        timezone: clockifyTimezone,
         clients: allClients.map((client) => ({
           clientLabel: client.label,
           projectId: client.projectId,
@@ -269,7 +272,7 @@ export function AsanaPage({ currentEmail }: { currentEmail: string }) {
         action: "pushFrClockify",
         email: currentEmail,
         workDate,
-        timezone: PLANNING_TIMEZONE,
+        timezone: clockifyTimezone,
         entries: plan.entries.map((entry) => ({
           order: entry.order,
           title: entry.title,
@@ -551,6 +554,27 @@ function getToday() {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getDefaultWorkDate(timezoneName: string) {
+  const today = getToday();
+
+  if (timezoneName !== PLANNING_TIMEZONE) {
+    return today;
+  }
+
+  return shiftDateByDays(today, -1);
+}
+
+function shiftDateByDays(dateText: string, dayOffset: number) {
+  const [year, month, day] = dateText
+    .split("-")
+    .map((value) => Number.parseInt(value, 10));
+  const shiftedDate = new Date(year, month - 1, day + dayOffset);
+  const nextYear = shiftedDate.getFullYear();
+  const nextMonth = String(shiftedDate.getMonth() + 1).padStart(2, "0");
+  const nextDay = String(shiftedDate.getDate()).padStart(2, "0");
+  return `${nextYear}-${nextMonth}-${nextDay}`;
 }
 
 function getCurrentTime() {

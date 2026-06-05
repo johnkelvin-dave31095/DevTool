@@ -1,10 +1,13 @@
 import json
 import logging
 import os
-from datetime import datetime
+import ssl
+from datetime import datetime, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+import pg8000.dbapi as pg8000
 
 from clockify_fr_clockify import (
     build_fr_clockify_entries,
@@ -19,6 +22,7 @@ CLOCKIFY_API_BASE_URL = os.environ.get(
     "CLOCKIFY_API_BASE_URL",
     "https://api.clockify.me/api/v1",
 )
+CLOCKIFY_MINUS_ONE_DAY_TIMEZONE = "Asia/Manila"
 
 
 def lambda_handler(event, context):
@@ -37,8 +41,8 @@ def lambda_handler(event, context):
         if get_http_method(event) == "OPTIONS":
             return response(200, {"message": "ok"})
 
-        settings = get_settings()
         payload = parse_payload(event)
+        settings = get_settings(event, payload)
         action = get_action(event, payload)
 
         if action == "list":
@@ -57,7 +61,7 @@ def lambda_handler(event, context):
                 include_archived=include_archived,
                 only_active_tasks=only_active_tasks,
             )
-            listing["timezone"] = get_user_timezone(settings["api_key"])
+            listing["timezone"] = clean_string(settings.get("clockify_timezone"))
 
             return response(200, listing)
 
@@ -67,7 +71,12 @@ def lambda_handler(event, context):
             if not entries:
                 return response(400, {"message": "No reviewed entries provided."})
 
-            return process_direct_push_entries(settings, entries, "push")
+            return process_direct_push_entries(
+                settings,
+                entries,
+                "push",
+                settings.get("clockify_timezone"),
+            )
 
         if action == "pushfrclockify":
             fr_request = parse_fr_clockify_request(payload)
@@ -98,6 +107,7 @@ def lambda_handler(event, context):
         if not outlook_events:
             return response(400, {"message": "No Outlook events provided."})
 
+        clockify_timezone = settings.get("clockify_timezone")
         created = []
         skipped = []
 
@@ -145,14 +155,20 @@ def lambda_handler(event, context):
                     )
                     continue
 
+                adjusted_start, adjusted_end = adjust_clockify_interval_for_timezone(
+                    validated_event["start"],
+                    validated_event["end"],
+                    clockify_timezone,
+                )
+
                 time_entry = create_time_entry(
                     api_key=settings["api_key"],
                     workspace_id=settings["workspace_id"],
                     project_id=project["id"],
                     task_id=task["id"],
                     description=validated_event["notes"],
-                    start=validated_event["start"],
-                    end=validated_event["end"],
+                    start=adjusted_start,
+                    end=adjusted_end,
                     billable=True,
                 )
 
@@ -164,8 +180,8 @@ def lambda_handler(event, context):
                         "taskId": task["id"],
                         "taskName": task.get("name"),
                         "timeEntryId": time_entry.get("id"),
-                        "start": validated_event["start"],
-                        "end": validated_event["end"],
+                        "start": adjusted_start,
+                        "end": adjusted_end,
                         "billable": True,
                     }
                 )
@@ -224,9 +240,15 @@ def get_http_method(event):
     ).upper()
 
 
-def get_settings():
-    api_key = os.environ.get("CLOCKIFY_API_KEY")
+def get_settings(event, payload):
+    email = get_email(event, payload)
+    api_key = get_clockify_api_key(email) if email else os.environ.get("CLOCKIFY_API_KEY")
     workspace_id = os.environ.get("CLOCKIFY_WORKSPACE_ID")
+    clockify_timezone = (
+        get_clockify_timezone(email)
+        if email
+        else None
+    )
 
     if not api_key:
         raise ConfigError("Missing environment variable: CLOCKIFY_API_KEY")
@@ -237,7 +259,84 @@ def get_settings():
     return {
         "api_key": api_key,
         "workspace_id": workspace_id,
+        "clockify_timezone": clockify_timezone,
     }
+
+
+def get_email(event, payload):
+    if isinstance(payload, dict):
+        email = clean_string(payload.get("email"))
+        if email:
+            return email
+
+    query_params = event.get("queryStringParameters") or {}
+    return clean_string(query_params.get("email"))
+
+
+def get_clockify_api_key(email):
+    query = """
+        SELECT a.clockify_api_key
+        FROM user_integrations a
+        INNER JOIN users b ON b.id = a.id
+        WHERE LOWER(b.email) = LOWER(%s)
+          AND a.clockify_api_key IS NOT NULL
+          AND a.clockify_api_key <> ''
+        LIMIT 1
+    """
+    row = fetch_one(query, (email,))
+
+    if not row or not str(row[0]).strip():
+        raise ConfigError("No Clockify API key found for the provided email.")
+
+    return str(row[0]).strip()
+
+
+def get_clockify_timezone(email):
+    query = """
+        SELECT u.clockify_timezone
+        FROM users u
+        WHERE LOWER(u.email) = LOWER(%s)
+        LIMIT 1
+    """
+    row = fetch_one(query, (email,))
+
+    if not row:
+        return None
+
+    timezone_name = clean_string(row[0])
+    return timezone_name or None
+
+
+def required_env(name):
+    value = os.environ.get(name)
+
+    if not value:
+        raise ConfigError(f"Missing environment variable: {name}")
+
+    return value
+
+
+def fetch_one(query, params):
+    conn = cursor = None
+
+    try:
+        conn = pg8000.connect(
+            host=required_env("DB_HOST"),
+            database=required_env("DB_NAME"),
+            user=required_env("DB_USER"),
+            password=required_env("DB_PASSWORD"),
+            port=int(os.environ.get("DB_PORT", "5432")),
+            timeout=10,
+            ssl_context=ssl.create_default_context(),
+        )
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        return cursor.fetchone()
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 def parse_payload(event):
@@ -324,7 +423,12 @@ def extract_events(payload):
     return []
 
 
-def process_direct_push_entries(settings, entries, action_name):
+def process_direct_push_entries(
+    settings,
+    entries,
+    action_name,
+    clockify_timezone=None,
+):
     catalog = list_projects_and_tasks(
         api_key=settings["api_key"],
         workspace_id=settings["workspace_id"],
@@ -388,14 +492,20 @@ def process_direct_push_entries(settings, entries, action_name):
                 )
                 continue
 
+            adjusted_start, adjusted_end = adjust_clockify_interval_for_timezone(
+                validated_entry["start"],
+                validated_entry["end"],
+                clockify_timezone,
+            )
+
             time_entry = create_time_entry(
                 api_key=settings["api_key"],
                 workspace_id=settings["workspace_id"],
                 project_id=validated_entry["projectId"],
                 task_id=validated_entry["taskId"],
                 description=validated_entry["description"],
-                start=validated_entry["start"],
-                end=validated_entry["end"],
+                start=adjusted_start,
+                end=adjusted_end,
                 billable=validated_entry["billable"],
             )
 
@@ -406,8 +516,8 @@ def process_direct_push_entries(settings, entries, action_name):
                 "taskId": validated_entry["taskId"],
                 "taskName": task.get("taskName") if task else None,
                 "timeEntryId": time_entry.get("id"),
-                "start": validated_entry["start"],
-                "end": validated_entry["end"],
+                "start": adjusted_start,
+                "end": adjusted_end,
                 "billable": validated_entry["billable"],
             }
             created.append(created_payload)
@@ -602,27 +712,6 @@ def list_projects_and_tasks(api_key, workspace_id, include_archived=False, only_
         "onlyActiveTasks": only_active_tasks,
         "projects": result_projects,
     }
-
-
-def get_user_timezone(api_key):
-    profile = request_json(
-        f"{CLOCKIFY_API_BASE_URL}/user",
-        method="GET",
-        api_key=api_key,
-    )
-
-    if not isinstance(profile, dict):
-        raise ClockifyError(502, "Unexpected Clockify user response.", profile)
-
-    settings = profile.get("settings")
-    if isinstance(settings, dict):
-        timezone_name = clean_string(
-            settings.get("timeZone") or settings.get("timezone")
-        )
-        if timezone_name:
-            return timezone_name
-
-    return os.environ.get("DEFAULT_TIMEZONE", "UTC")
 
 
 def get_all_projects(api_key, workspace_id, include_archived=False):
@@ -894,6 +983,18 @@ def parse_iso_datetime(value):
         return datetime.fromisoformat(normalized)
     except ValueError as exc:
         raise ValidationError(f"Invalid ISO datetime: {value}") from exc
+
+
+def adjust_clockify_interval_for_timezone(start, end, clockify_timezone):
+    if clean_string(clockify_timezone) == CLOCKIFY_MINUS_ONE_DAY_TIMEZONE:
+        return start, end
+
+    return shift_iso_datetime_by_days(start, 1), shift_iso_datetime_by_days(end, 1)
+
+
+def shift_iso_datetime_by_days(value, days):
+    shifted = parse_iso_datetime(value) + timedelta(days=days)
+    return shifted.isoformat().replace("+00:00", "Z")
 
 
 def clean_string(value):

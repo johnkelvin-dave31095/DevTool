@@ -59,6 +59,8 @@ type AppToast = {
 
 type DescriptionMode = "body" | "title" | "body_title";
 
+const CLOCKIFY_MINUS_ONE_DAY_TIMEZONE = "Asia/Manila";
+
 type ClockifyPushEntry = {
   title: string;
   description: string;
@@ -122,6 +124,7 @@ type MergeReviewState = {
 export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
   const [startDate, setStartDate] = useState(getUtcMinus7Today());
   const [endDate, setEndDate] = useState(getUtcMinus7Today());
+  const [clockifyTimezone, setClockifyTimezone] = useState("");
   const [events, setEvents] = useState<OutlookEvent[]>([]);
   const [projects, setProjects] = useState<ClockifyProject[]>([]);
   const [draftRows, setDraftRows] = useState<SyncDraftRow[]>([]);
@@ -249,6 +252,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
         descriptionMode,
       );
 
+      setClockifyTimezone(catalog.timezone ?? "");
       setEvents(outlookData.events);
       setProjects(catalog.projects);
       setDraftRows(nextRows);
@@ -327,6 +331,15 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
     setIsSubmitting(true);
 
     try {
+      const entriesToSubmit =
+        clockifyTimezone === CLOCKIFY_MINUS_ONE_DAY_TIMEZONE
+          ? entries.map((entry) => ({
+              ...entry,
+              start: shiftIsoDateByDays(entry.start, -1),
+              end: shiftIsoDateByDays(entry.end, -1),
+            }))
+          : entries;
+
       const data = await postJson<
         ClockifySyncResponse,
         {
@@ -337,7 +350,7 @@ export function IntegrationPage({ currentEmail }: { currentEmail: string }) {
       >(CLOCKIFY_SYNC_URL, {
         action: "push",
         email: currentEmail,
-        entries,
+        entries: entriesToSubmit,
       });
 
       handleClockifyResult(data);
@@ -1803,6 +1816,16 @@ function addDays(value: string, days: number) {
   const date = new Date(`${value}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function shiftIsoDateByDays(value: string, days: number) {
+  const timestamp = new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+
+  return new Date(timestamp + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
 function buildDraftRows(
